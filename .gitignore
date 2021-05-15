@@ -686,3 +686,6 @@ $RECYCLE.BIN/
 # Project exclude paths
 /cmake-build-debug/
 /cmake-build-debug-remote/
+
+# Miscellaneous
+/Miscellaneous
