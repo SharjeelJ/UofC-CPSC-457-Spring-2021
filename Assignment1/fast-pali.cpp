@@ -1,7 +1,6 @@
 #include <unistd.h>
-#include <stdio.h>
-#include <stdio.h>
-#include <ctype.h>
+#include <cstdio>
+#include <cctype>
 #include <string>
 #include <vector>
 
@@ -23,7 +22,7 @@ split(const std::string &inputLine) {
     bool whitespaceHasNotOccurred = false;
 
     // String variable that will store the set of characters forming the word currently being parsed
-    std::string currentWord = "";
+    std::string currentWord;
 
     // Loops through all characters in the passed in line
     for (auto currentCharacter : lineToParse) {
@@ -104,7 +103,7 @@ stdin_readline() {
         // If a line break is encountered then stops the read (if the compiled string is not empty), otherwise proceeds past the line break and attempts to compile the resulting string
         if (remainingBufferSize == '\n') {
             // If the compiled string is not empty then breaks the read loop to return it
-            if (compiledStringResult.size() > 0) break;
+            if (!compiledStringResult.empty()) break;
         } else {
             // Appends the current character from the buffer into the compiled string
             compiledStringResult.push_back(remainingBufferSize);
@@ -144,18 +143,18 @@ get_longest_palindrome() {
     std::string longestPalindrome;
 
     // Loops through all the possible words
-    while (1) {
+    while (true) {
         // Stores the current line (string) to parse
         std::string line = stdin_readline();
 
         // If the line being checked is empty, breaks the loop
-        if (line.size() == 0) break;
+        if (line.empty()) break;
 
         // Splits all the words in the line delimited by white-space, and stores the result in a vector
         auto wordVector = split(line);
 
         // Loops through the resulting vector
-        for (auto currentWord : wordVector) {
+        for (const auto &currentWord : wordVector) {
             // Checks to see if the current word being checked is longer than the longest palindrome stored so far and skips the check to see if the current word is a palindrome if it is shorter
             if (currentWord.size() <= longestPalindrome.size()) continue;
             // Checks to see if the current word is a palindrome and stores it as the new longest palindrome encountered so far
