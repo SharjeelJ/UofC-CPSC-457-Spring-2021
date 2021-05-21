@@ -37,9 +37,14 @@ getDirStats(const std::string &dir_name, int n) {
     // The results below are all hard-coded, to show you all the fields
     // you need to calculate. You should delete all code below and
     // replace it with your own code.
+
+    // Custom data structure consisting of the directory's information
     Results res;
+
+    // Stores a boolean to keep track of whether or not the directory's information is update to date and complete (valid)
     res.valid = false;
 
+    // If the passed in directory is not actually a valid directory, returns the results as is (mentioning directory is not valid in main.cpp)
     if (!is_dir(dir_name)) return res;
 
     // prepare a fake results
@@ -69,6 +74,9 @@ getDirStats(const std::string &dir_name, int n) {
     group2.push_back(dir_name + "/x.y");
     res.duplicate_files.push_back(group2);
 
+    // Updates the boolean to reflect that the directory's info is valid (complete)
     res.valid = true;
+
+    // Returns the valid directory info
     return res;
 }
