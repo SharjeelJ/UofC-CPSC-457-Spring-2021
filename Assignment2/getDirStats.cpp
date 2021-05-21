@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <dirent.h>
 
 static bool
 is_dir(const std::string &path) {
@@ -34,6 +35,49 @@ is_dir(const std::string &path) {
 //
 Results
 getDirStats(const std::string &dir_name, int n) {
+    // Creates a stack that will store a list of all the files/folders in the current directory and their contents recursively
+    std::vector<std::string> stack;
+
+    // Adds the current directory to the top of the stack (bottom of the vector)
+    stack.push_back(".");
+
+    // Loops through anything remaining in the stack and looks through them recursively
+    while (!stack.empty()) {
+        // Stores the reference to the file path of the item at the top of the stack
+        auto dirname = stack.back();
+
+        // Removes the item from the top of the stack (file path of next file/folder to examine)
+        stack.pop_back();
+
+        // Prints out the file path of the current file/folder being examined
+        printf("%s\n", dirname.c_str());
+
+        // Opens the file/folder at the path popped from the stack
+        DIR *dir = opendir(dirname.c_str());
+
+        // If the file path is a directory them loops through its contents as well
+        if (dir) {
+            // Loops through all the contents of the current subdirectory
+            while (1) {
+                // Pointer value to the next directory entry
+                dirent *de = readdir(dir);
+
+                // If the pointer is not a directory then breaks the loop (stops parsing the current subdirectory further)
+                if (!de) break;
+
+                // Stores the name of the current subdirectory
+                std::string name = de->d_name;
+                if (name == "." || name == "..") continue;
+                std::string path = dirname + "/" + de->d_name;
+                stack.push_back(path);
+            }
+            closedir(dir);
+        }
+    }
+    Results temp;
+    temp.valid = false;
+    return temp;
+
     // The results below are all hard-coded, to show you all the fields
     // you need to calculate. You should delete all code below and
     // replace it with your own code.
