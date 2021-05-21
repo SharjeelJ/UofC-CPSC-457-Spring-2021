@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="clean" type="MAKEFILE_TARGET_RUN_CONFIGURATION" factoryName="Makefile">
+  <configuration default="false" name="A1 Make (Clean)" type="MAKEFILE_TARGET_RUN_CONFIGURATION" factoryName="Makefile">
     <makefile filename="$PROJECT_DIR$/Assignment1/Makefile" target="clean" workingDirectory="" arguments="">
       <envs />
     </makefile>
