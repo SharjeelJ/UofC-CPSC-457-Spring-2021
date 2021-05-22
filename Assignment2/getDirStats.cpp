@@ -9,11 +9,11 @@
 
 #include "getDirStats.h"
 #include "digester.h"
-
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <dirent.h>
+#include <fstream>
+
+using namespace std;
 
 static bool
 is_dir(const std::string &path) {
@@ -35,48 +35,84 @@ is_dir(const std::string &path) {
 //
 Results
 getDirStats(const std::string &dir_name, int n) {
+    // Creates a new variable of the struct Results to store the all the info of the specified directory recursively
+    Results results;
+
+    // Sets the results boolean to default to invalid (will be changed to valid once all the parsing successfully completes)
+    results.valid = false;
+
     // Creates a stack that will store a list of all the files/folders in the current directory and their contents recursively
-    std::vector<std::string> stack;
+    vector<string> itemsToParseStack;
 
     // Adds the current directory to the top of the stack (bottom of the vector)
-    stack.push_back(".");
+    itemsToParseStack.push_back(dir_name);
 
     // Loops through anything remaining in the stack and looks through them recursively
-    while (!stack.empty()) {
+    while (!itemsToParseStack.empty()) {
         // Stores the reference to the file path of the item at the top of the stack
-        auto dirname = stack.back();
+        auto currentTopItemName = itemsToParseStack.back();
 
-        // Removes the item from the top of the stack (file path of next file/folder to examine)
-        stack.pop_back();
+        // Removes the item from the top of the stack (file path of the file/folder to examine)
+        itemsToParseStack.pop_back();
 
         // Prints out the file path of the current file/folder being examined
-        printf("%s\n", dirname.c_str());
+//        printf("%s\n", currentTopItemName.c_str());
 
         // Opens the file/folder at the path popped from the stack
-        DIR *dir = opendir(dirname.c_str());
+        DIR *currentTopItem = opendir(currentTopItemName.c_str());
 
-        // If the file path is a directory them loops through its contents as well
-        if (dir) {
-            // Loops through all the contents of the current subdirectory
+        // If the file path is a directory then loops through its contents as well
+        if (currentTopItem) {
+            // Loops through all the contents of the current top directory being examined
             while (1) {
-                // Pointer value to the next directory entry
-                dirent *de = readdir(dir);
+                // Pointer value to the next sub item
+                dirent *nextSubItem = readdir(currentTopItem);
 
-                // If the pointer is not a directory then breaks the loop (stops parsing the current subdirectory further)
-                if (!de) break;
+                // If the pointer is not accessible (indicates the end of the folder) then breaks the loop
+                if (!nextSubItem) break;
 
-                // Stores the name of the current subdirectory
-                std::string name = de->d_name;
-                if (name == "." || name == "..") continue;
-                std::string path = dirname + "/" + de->d_name;
-                stack.push_back(path);
+                // Stores the name of the sub item
+                string currentSubItemName = nextSubItem->d_name;
+
+                // Skips this loop iteration for the first 2 values we receive (useless data)
+                if (currentSubItemName == "." || currentSubItemName == "..") continue;
+
+                // Adds the current sub-item's full path as the new parent directory for the next directory to be examined
+                string path = currentTopItemName + "/" + currentSubItemName;
+
+                // Pushes the new file path to the top of the stack
+                itemsToParseStack.push_back(path);
             }
-            closedir(dir);
+            // Closes the current file/folder
+            closedir(currentTopItem);
         }
+
+        // Creates a new file stream that will store the data from popen
+        FILE *fileData;
+
+        // Character array of the size 4096 that will store the path being used by popen
+        char popenData[PATH_MAX];
+
+        // Sets the filestream to contain the data from the popen command
+        fileData = popen(("file " + currentTopItemName).c_str(), "r");
+
+        // Loops through all the data obtained from popen and prints it to the console
+        while (fgets(popenData, PATH_MAX, fileData) != NULL)
+            printf("%s", popenData);
+
+        // Closes popen and the file stream
+        pclose(fileData);
+
+        // Creates a stat struct to get the current file's size
+        struct stat buffer;
+
+        // Prints out the data obtained through stat
+        printf("Last modification: %s", ctime(&buffer.st_mtime));
+        printf("File size: %lld bytes\n", (long long) buffer.st_size);
+        printf("\n");
     }
-    Results temp;
-    temp.valid = false;
-    return temp;
+    // Returns the complete directory info
+    return results;
 
     // The results below are all hard-coded, to show you all the fields
     // you need to calculate. You should delete all code below and
