@@ -107,9 +107,11 @@ getDirStats(const std::string &dir_name, int n) {
         struct stat buffer;
 
         // Prints out the data obtained through stat
-        printf("Last modification: %s", ctime(&buffer.st_mtime));
-        printf("File size: %lld bytes\n", (long long) buffer.st_size);
-        printf("\n");
+        if (stat(currentTopItemName.c_str(), &buffer) == 0) {
+            printf("Last modification: %s", ctime(&buffer.st_mtime));
+            printf("File size: %lld bytes\n", (long long) buffer.st_size);
+            printf("\n");
+        }
     }
     // Returns the complete directory info
     return results;
