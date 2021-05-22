@@ -136,10 +136,18 @@ getDirStats(const std::string &dir_name, int n) {
         // Sets the filestream to contain the data from the popen command
         fileData = popen(("file -b " + currentTopItem).c_str(), "r");
 
-        // Prints the data obtained from popen
-        while (fgets(popenData, PATH_MAX, fileData) != NULL) {
-            printf(popenData);
-        }
+        // Gets the data obtained from popen
+        fgets(popenData, PATH_MAX, fileData);
+
+        // Cleans the popen result by grabbing all text up to the first instance of ,
+        string popenResult = string(popenData).substr(0, string(popenData).find(",")).c_str();
+
+        // Further cleans the popen result by stripping all unnecessary trailing whitespaces
+        popenResult = popenResult.erase(popenResult.find_last_not_of(" \t\n\r\f\v") + 1);
+
+        // Prints out the cleaned popen result
+        printf(popenResult.c_str());
+        printf("\n");
 
         // Closes popen and the file stream
         pclose(fileData);
@@ -158,6 +166,10 @@ getDirStats(const std::string &dir_name, int n) {
 
         // Adds the current file size to the existing total file size of the specified directory in the results struct
         results.all_files_size += buffer.st_size;
+
+        // Prints out the SHA256 digest of the current file
+//        printf(sha256_from_file(currentTopItem).c_str());
+//        printf("\n");
     }
 
     // Returns the complete directory info
