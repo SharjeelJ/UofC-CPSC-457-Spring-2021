@@ -43,21 +43,14 @@ getDirStats(const std::string &dir_name, int n) {
     results.largest_file_path = "";
     results.largest_file_size = -1;
     results.n_files = 0;
-    results.n_dirs = 0;
+    results.n_dirs = -1; // Starts at -1 to not count the root directory as an encountered directory
     results.all_files_size = 0;
 
     // If the passed in directory is not actually a valid directory, returns the results as is (mentioning directory is not valid in main.cpp)
     if (!is_dir(dir_name)) return results;
 
     // TODO: Remove below fake results
-
     // prepare a fake results
-//    results.largest_file_path = dir_name + "/some_dir/some_file.txt";
-//    results.largest_file_size = 123;
-//    results.n_files = 321;
-//    results.n_dirs = 333;
-//    results.all_files_size = 1000000;
-
     std::string type1 = "C source";
     int count1 = 5;
     results.most_common_types.push_back({type1, count1});
@@ -80,7 +73,6 @@ getDirStats(const std::string &dir_name, int n) {
 
     // Updates the boolean to reflect that the directory's info is valid (complete)
     results.valid = true;
-
     // TODO: Remove above fake results
 
     // Creates a stack that will store a list of all the files/folders in the current directory and their contents recursively
@@ -130,9 +122,10 @@ getDirStats(const std::string &dir_name, int n) {
 
             // Increments the counter keeping track of the total number of directories encountered
             results.n_dirs++;
+        } else {
+            // Increments the counter keeping track of the total number of files encountered
+            results.n_files++;
         }
-        // Increments the counter keeping track of the total number of files encountered
-        results.n_files++;
 
         // Creates a new file stream that will store the data from popen
         FILE *fileData;
@@ -154,17 +147,13 @@ getDirStats(const std::string &dir_name, int n) {
         // Creates a stat struct that will be used to get the current file's size
         struct stat buffer;
 
-        // Prints out the data obtained through stat
-        if (stat(currentTopItem.c_str(), &buffer) == 0) {
-//            printf("Last modification: %s", ctime(&buffer.st_mtime));
-//            printf("File size: %lld bytes\n", (long long) buffer.st_size);
-//            printf("\n");
-        }
+        // Populates the stat struct with the file's data
+        stat(currentTopItem.c_str(), &buffer);
 
-        // Checks to see if the current file is the largest file we have encountered and stores its data if it is
+        // Checks to see if the current file is the largest file we have encountered and stores its path and size if it is
         if (buffer.st_size > results.largest_file_size) {
-            results.largest_file_size = buffer.st_size;
             results.largest_file_path = currentTopItem;
+            results.largest_file_size = buffer.st_size;
         }
 
         // Adds the current file size to the existing total file size of the specified directory in the results struct
