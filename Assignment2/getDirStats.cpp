@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <fstream>
+#include <unordered_map>
+#include <algorithm>
 
 using namespace std;
 
@@ -51,13 +53,6 @@ getDirStats(const std::string &dir_name, int n) {
 
     // TODO: Remove below fake results
     // prepare a fake results
-    std::string type1 = "C source";
-    int count1 = 5;
-    results.most_common_types.push_back({type1, count1});
-    results.most_common_types.push_back({"makefile script", 4});
-    results.most_common_types.push_back({"C++ source", 2});
-    results.most_common_types.push_back({"PNG image", 1});
-
     results.most_common_words.push_back({"hello", 3});
     results.most_common_words.push_back({"world", 1});
 
@@ -80,6 +75,9 @@ getDirStats(const std::string &dir_name, int n) {
 
     // Adds the current directory (root) to the top of the stack (bottom of the vector)
     itemsToParseStack.push_back(dir_name);
+
+    // Creates an unordered map that will be used as a histogram for file types encountered
+    unordered_map<string, int> fileTypeHistogram;
 
     // Loops through anything remaining in the stack and looks through them recursively if possible
     while (!itemsToParseStack.empty()) {
@@ -122,55 +120,78 @@ getDirStats(const std::string &dir_name, int n) {
 
             // Increments the counter keeping track of the total number of directories encountered
             results.n_dirs++;
-        } else {
+        }
+            // Code run if the file path is a file rather than a directory
+        else {
+            // Creates a new file stream that will store the data from popen
+            FILE *fileData;
+
+            // Character array of the size 4096 that will store the path being used by popen
+            char popenData[PATH_MAX];
+
+            // Sets the filestream to contain the data from the popen command
+            fileData = popen(("file -b " + currentTopItem).c_str(), "r");
+
+            // Gets the data obtained from popen
+            fgets(popenData, PATH_MAX, fileData);
+
+            // Cleans the popen result by grabbing all text up to the first instance of ,
+            string popenResult = string(popenData).substr(0, string(popenData).find(",")).c_str();
+
+            // Further cleans the popen result by stripping all unnecessary trailing whitespaces
+            popenResult = popenResult.erase(popenResult.find_last_not_of(" \t\n\r\f\v") + 1);
+
+            // Prints out the cleaned popen result
+            printf(popenResult.c_str());
+            printf("\n");
+
+            // Closes popen and the file stream
+            pclose(fileData);
+
+            fileTypeHistogram[popenResult]++;
+
+            // Creates a stat struct that will be used to get the current file's size
+            struct stat buffer;
+
+            // Populates the stat struct with the file's data
+            stat(currentTopItem.c_str(), &buffer);
+
+            // Checks to see if the current file is the largest file we have encountered and stores its path and size if it is
+            if (buffer.st_size > results.largest_file_size) {
+                results.largest_file_path = currentTopItem;
+                results.largest_file_size = buffer.st_size;
+            }
+
+            // Adds the current file size to the existing total file size of the specified directory in the results struct
+            results.all_files_size += buffer.st_size;
+
+            // Prints out the SHA256 digest of the current file
+//            printf(sha256_from_file(currentTopItem).c_str());
+//            printf("\n");
+
             // Increments the counter keeping track of the total number of files encountered
             results.n_files++;
         }
-
-        // Creates a new file stream that will store the data from popen
-        FILE *fileData;
-
-        // Character array of the size 4096 that will store the path being used by popen
-        char popenData[PATH_MAX];
-
-        // Sets the filestream to contain the data from the popen command
-        fileData = popen(("file -b " + currentTopItem).c_str(), "r");
-
-        // Gets the data obtained from popen
-        fgets(popenData, PATH_MAX, fileData);
-
-        // Cleans the popen result by grabbing all text up to the first instance of ,
-        string popenResult = string(popenData).substr(0, string(popenData).find(",")).c_str();
-
-        // Further cleans the popen result by stripping all unnecessary trailing whitespaces
-        popenResult = popenResult.erase(popenResult.find_last_not_of(" \t\n\r\f\v") + 1);
-
-        // Prints out the cleaned popen result
-        printf(popenResult.c_str());
-        printf("\n");
-
-        // Closes popen and the file stream
-        pclose(fileData);
-
-        // Creates a stat struct that will be used to get the current file's size
-        struct stat buffer;
-
-        // Populates the stat struct with the file's data
-        stat(currentTopItem.c_str(), &buffer);
-
-        // Checks to see if the current file is the largest file we have encountered and stores its path and size if it is
-        if (buffer.st_size > results.largest_file_size) {
-            results.largest_file_path = currentTopItem;
-            results.largest_file_size = buffer.st_size;
-        }
-
-        // Adds the current file size to the existing total file size of the specified directory in the results struct
-        results.all_files_size += buffer.st_size;
-
-        // Prints out the SHA256 digest of the current file
-//        printf(sha256_from_file(currentTopItem).c_str());
-//        printf("\n");
     }
+
+    // Below code was provided in the word-histogram repository
+    std::vector<std::pair<int, std::string>> arr;
+    for (auto &h : fileTypeHistogram)
+        arr.emplace_back(-h.second, h.first);
+    // if we have more than N entries, we'll sort partially, since
+    // we only need the first N to be sorted
+    if (arr.size() > size_t(n)) {
+        std::partial_sort(arr.begin(), arr.begin() + n, arr.end());
+        // drop all entries after the first n
+        arr.resize(n);
+    } else {
+        std::sort(arr.begin(), arr.end());
+    }
+    // End of provided code
+
+    // Populates the final dataset with the relevant data
+    for (auto &h : arr)
+        results.most_common_types.emplace_back(h.second, -h.first);
 
     // Returns the complete directory info
     return results;
