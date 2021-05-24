@@ -46,7 +46,7 @@ def update_whist(whist, fname):
         # record last word
         if wl >= 3:
             i = len(mm)
-            word = mm[i - wl: i].decode()
+            word = mm[i - wl: i].decode().lower()
             whist[word] += 1
             wl = 0
 
