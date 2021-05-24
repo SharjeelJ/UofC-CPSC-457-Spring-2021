@@ -24,6 +24,19 @@ is_dir(const std::string &path) {
     return S_ISDIR(buff.st_mode);
 }
 
+// Custom comparator to only compare the second value of pairs (will be used to sort in descending order for the most occurring file types)
+bool
+fileTypeComparator(const pair<string, int> &firstElement, const pair<string, int> &secondElement) {
+    return firstElement.second > secondElement.second;
+}
+
+// Custom comparator to only compare the size of the vectors (will be used to sort in descending order for the most occurring duplicate files)
+bool
+fileDigestComparator(const vector<string> &firstElement,
+                     const vector<string> &secondElement) {
+    return firstElement.size() > secondElement.size();
+}
+
 // ======================================================================
 // You need to re-implement this function !!!!
 // ======================================================================
@@ -55,19 +68,6 @@ getDirStats(const std::string &dir_name, int n) {
     // prepare a fake results
     results.most_common_words.push_back({"hello", 3});
     results.most_common_words.push_back({"world", 1});
-
-    std::vector<std::string> group1;
-    group1.push_back(dir_name + "/file1.cpp");
-    group1.push_back(dir_name + "/lib/sub/other.c");
-    results.duplicate_files.push_back(group1);
-    std::vector<std::string> group2;
-    group2.push_back(dir_name + "/readme.md");
-    group2.push_back(dir_name + "/docs/readme.txt");
-    group2.push_back(dir_name + "/x.y");
-    results.duplicate_files.push_back(group2);
-
-    // Updates the boolean to reflect that the directory's info is valid (complete)
-    results.valid = true;
     // TODO: Remove above fake results
 
     // Creates a stack that will store a list of all the files/folders in the current directory and their contents recursively
@@ -79,6 +79,9 @@ getDirStats(const std::string &dir_name, int n) {
     // Creates an unordered map that will be used as a histogram for file types encountered
     unordered_map<string, int> fileTypeHistogram;
 
+    // Creates an unordered map that will be used as a histogram for file digests encountered
+    unordered_map<string, vector<string>> fileDigestHistogram;
+
     // Loops through anything remaining in the stack and looks through them recursively if possible
     while (!itemsToParseStack.empty()) {
         // Stores the reference to the file path of the item at the top of the stack
@@ -86,9 +89,6 @@ getDirStats(const std::string &dir_name, int n) {
 
         // Removes the item from the top of the stack (file path of the file/folder to examine)
         itemsToParseStack.pop_back();
-
-        // Prints out the file path of the current file/folder being examined
-//        printf("%s\n", currentTopItem.c_str());
 
         // Opens the file/folder at the path popped from the stack
         DIR *currentTopItemData = opendir(currentTopItem.c_str());
@@ -141,14 +141,14 @@ getDirStats(const std::string &dir_name, int n) {
             // Further cleans the popen result by stripping all unnecessary trailing whitespaces
             popenResult = popenResult.erase(popenResult.find_last_not_of(" \t\n\r\f\v") + 1);
 
-            // Prints out the cleaned popen result
-            printf(popenResult.c_str());
-            printf("\n");
-
             // Closes popen and the file stream
             pclose(fileData);
 
+            // Adds the current file's type to the histogram
             fileTypeHistogram[popenResult]++;
+
+            // Adds the current file's digest to the histogram
+            fileDigestHistogram[sha256_from_file(currentTopItem).c_str()].push_back(currentTopItem);
 
             // Creates a stat struct that will be used to get the current file's size
             struct stat buffer;
@@ -165,33 +165,51 @@ getDirStats(const std::string &dir_name, int n) {
             // Adds the current file size to the existing total file size of the specified directory in the results struct
             results.all_files_size += buffer.st_size;
 
-            // Prints out the SHA256 digest of the current file
-//            printf(sha256_from_file(currentTopItem).c_str());
-//            printf("\n");
-
             // Increments the counter keeping track of the total number of files encountered
             results.n_files++;
         }
     }
 
-    // Below code was provided in the word-histogram repository
-    std::vector<std::pair<int, std::string>> arr;
+    // Loops through the file type histogram and populates the most common file types results vector
     for (auto &h : fileTypeHistogram)
-        arr.emplace_back(-h.second, h.first);
-    // if we have more than N entries, we'll sort partially, since
-    // we only need the first N to be sorted
-    if (arr.size() > size_t(n)) {
-        std::partial_sort(arr.begin(), arr.begin() + n, arr.end());
-        // drop all entries after the first n
-        arr.resize(n);
-    } else {
-        std::sort(arr.begin(), arr.end());
-    }
-    // End of provided code
+        results.most_common_types.emplace_back(h.first, h.second);
 
-    // Populates the final dataset with the relevant data
-    for (auto &h : arr)
-        results.most_common_types.emplace_back(h.second, -h.first);
+    // Performs a partial sort if there are more than N entries
+    if (results.most_common_types.size() > size_t(n)) {
+        // Performs a partial sort up to N entries with the custom comparator
+        partial_sort(results.most_common_types.begin(), results.most_common_types.begin() + n,
+                     results.most_common_types.end(),
+                     &fileTypeComparator);
+
+        // Drops all the entries that occur after N entries
+        results.most_common_types.resize(n);
+    } else {
+        // Performs a full sort as there are less than N entries with the custom comparator
+        sort(results.most_common_types.begin(), results.most_common_types.end(), &fileTypeComparator);
+    }
+
+    // Loops through the file digest histogram and populates the duplicate files results vector
+    for (auto &h : fileDigestHistogram) {
+        // Only adds vectors that had more than 1 entry (as 1 file per digest means there was no duplicate files)
+        if (h.second.size() > 1)
+            results.duplicate_files.push_back(h.second);
+    }
+
+    // Performs a partial sort if there are more than N entries
+    if (results.duplicate_files.size() > size_t(n)) {
+        // Performs a partial sort up to N entries with the custom comparator
+        partial_sort(results.duplicate_files.begin(), results.duplicate_files.begin() + n,
+                     results.duplicate_files.end(), &fileDigestComparator);
+
+        // Drops all the entries that occur after N entries
+        results.duplicate_files.resize(n);
+    } else {
+        // Performs a full sort as there are less than N entries with the custom comparator
+        std::sort(results.duplicate_files.begin(), results.duplicate_files.end(), &fileDigestComparator);
+    }
+
+    // Updates the boolean to reflect that the directory's info is valid (complete)
+    results.valid = true;
 
     // Returns the complete directory info
     return results;
