@@ -181,7 +181,7 @@ getDirStats(const std::string &dir_name, int n) {
                     // Checks to see if the current character being parsed is not an alphabetical character
                     if (!isalpha(currentChar)) {
                         // Proceeds with parsing the word further if there were no alphabetical characters encountered so far (word is of size 0 so there is nothing to store)
-                        if (currentWord.size() == 0)
+                        if (currentWord.empty())
                             continue;
                         else
                             // If alphabetical characters were encountered while parsing the current word then stops parsing it further (tp store the current word)
@@ -193,7 +193,7 @@ getDirStats(const std::string &dir_name, int n) {
                 }
 
                 // If an empty word was passed back then stops parsing the file entirely (indicates end of file)
-                if (currentWord.size() == 0) break;
+                if (currentWord.empty()) break;
                 else if (currentWord.size() >= 3)
                     // If the word is of length 3 or more then adds it to the histogram
                     fileWordsHistogram[currentWord]++;
