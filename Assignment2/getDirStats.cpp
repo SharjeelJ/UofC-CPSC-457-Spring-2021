@@ -1,12 +1,3 @@
-/// =========================================================================
-/// Written by pfederl@ucalgary.ca in 2020, for CPSC457.
-/// =========================================================================
-/// You need to edit this file.
-///
-/// You can delete all contents of this file and start from scratch if
-/// you wish, but you need to implement the getDirStats() function as
-/// defined in "getDirStats.h".
-
 #include "getDirStats.h"
 #include "digester.h"
 #include <sys/stat.h>
@@ -17,23 +8,20 @@
 
 using namespace std;
 
-static bool
-is_dir(const std::string &path) {
+static bool is_dir(const std::string &path) {
     struct stat buff;
     if (0 != stat(path.c_str(), &buff)) return false;
     return S_ISDIR(buff.st_mode);
 }
 
 // Custom comparator to only compare the second value of pairs (will be used to sort in descending order for the most occurring file types or for the most occurring words)
-bool
-fileTypeOrWordsComparator(const pair<string, int> &firstElement, const pair<string, int> &secondElement) {
+bool fileTypeOrWordsComparator(const pair<string, int> &firstElement, const pair<string, int> &secondElement) {
     return firstElement.second > secondElement.second;
 }
 
 // Custom comparator to only compare the size of the vectors (will be used to sort in descending order for the most occurring duplicate files)
-bool
-fileDigestComparator(const vector<string> &firstElement,
-                     const vector<string> &secondElement) {
+bool fileDigestComparator(const vector<string> &firstElement,
+                          const vector<string> &secondElement) {
     return firstElement.size() > secondElement.size();
 }
 
@@ -44,8 +32,7 @@ fileDigestComparator(const vector<string> &firstElement,
 // if successful, results.valid = true
 // on failure, results.valid = false
 //
-Results
-getDirStats(const std::string &dir_name, int n) {
+Results getDirStats(const std::string &dir_name, int n) {
     // Creates a new variable of the struct Results to store all the info of the specified directory recursively
     Results results;
 
