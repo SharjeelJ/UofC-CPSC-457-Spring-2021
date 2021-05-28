@@ -8,30 +8,45 @@
 
 using namespace std;
 
-static bool is_dir(const std::string &path) {
+/**
+ * Function to check if the passed in filepath is a directory
+ * @note Code was provided with this file
+ * @param path - Pointer to the string containing the filepath that needs to be checked
+ * @returns boolean - Boolean result indicating whether the passed in filepath is a directory (True = directory, False = file)
+ */static bool is_dir(const std::string &path) {
     struct stat buff;
     if (0 != stat(path.c_str(), &buff)) return false;
     return S_ISDIR(buff.st_mode);
 }
 
-// Custom comparator to only compare the second value of pairs (will be used to sort in descending order for the most occurring file types or for the most occurring words)
+/**
+ * Function to use a custom comparator to only compare the second value of pairs (will be used to sort in descending order for the most occurring file types or for the most occurring words)
+ * @param firstElement - Pointer to the first element whose second sub-item will be compared
+ * @param secondElement - Pointer to the second element whose second sub-item will be compared
+ * @returns boolean - Result of the comparison of the second object of the first element vs the second object of the second element (True = first element > second element, False = first element <- second element)
+ */
 bool fileTypeOrWordsComparator(const pair<string, int> &firstElement, const pair<string, int> &secondElement) {
     return firstElement.second > secondElement.second;
 }
 
-// Custom comparator to only compare the size of the vectors (will be used to sort in descending order for the most occurring duplicate files)
+/**
+ * Function to use a custom comparator to only compare the size of the vectors (will be used to sort in descending order for the most occurring duplicate files)
+ * @param firstElement - Pointer to the first element whose size be compared
+ * @param secondElement - Pointer to the second element whose size be compared
+ * @returns boolean - Result of the comparison of the size of the first element vs the size of the second element (True = first element's size > second element's size, False = first element's size <= second element's size)
+ */
 bool fileDigestComparator(const vector<string> &firstElement,
                           const vector<string> &secondElement) {
     return firstElement.size() > secondElement.size();
 }
 
-// getDirStats() computes stats about directory a directory
-//   dir_name = name of the directory to examine
-//   n = how many top words/filet types/groups to report
-//
-// if successful, results.valid = true
-// on failure, results.valid = false
-//
+/**
+ * Function that parses the provided filepath (assuming it is a directory) and populates the Results struct and returns the results of a recursive parse
+ * @note Uses code either directly obtained from or inspired by dirStats (https://gitlab.com/cpsc457/public/dirstats), popenexample (https://gitlab.com/cpsc457/public/popen-example) and word-histogram (https://gitlab.com/cpsc457/public/word-histogram)
+ * @param dir_name - Pointer to the filepath of the directory to parse through
+ * @param n - Integer that will define how many file types, common words, duplicate file groups will be reported
+ * @returns Results - An instance of the struct Results where all the data of the requested filepath (and all its subdirectories) has been populated. If the .valid boolean is set to False, then the parse encountered an issue
+ */
 Results getDirStats(const std::string &dir_name, int n) {
     // Creates a new variable of the struct Results to store all the info of the specified directory recursively
     Results results;
@@ -46,6 +61,9 @@ Results getDirStats(const std::string &dir_name, int n) {
 
     // If the passed in directory is not actually a valid directory, returns the results as is
     if (!is_dir(dir_name)) return results;
+
+    // Resets the integer that stores the error number for every file/folder call (used to determine if to terminate the parse early)
+    errno = 0;
 
     // Creates a stack that will store a list of all the files/folders in the current directory and their contents recursively
     vector<string> itemsToParseStack;
@@ -71,6 +89,7 @@ Results getDirStats(const std::string &dir_name, int n) {
         itemsToParseStack.pop_back();
 
         // Opens the file/folder at the path popped from the stack
+        errno = 0;
         DIR *currentTopItemData = opendir(currentTopItem.c_str());
 
         // If the file path is a directory then loops through its contents as well
@@ -78,7 +97,12 @@ Results getDirStats(const std::string &dir_name, int n) {
             // Loops through all the contents of the current top directory being examined
             while (true) {
                 // Pointer value to the next sub-item
+                errno = 0;
                 dirent *nextSubItem = readdir(currentTopItemData);
+
+                // Returns the results as is (terminates the parse early) if the current file/foder cannot be opened
+                if (errno != 0 && errno != ENOTDIR)
+                    return results;
 
                 // If the pointer is not accessible (indicates the end of the folder) then breaks the loop
                 if (!nextSubItem) break;
@@ -103,7 +127,7 @@ Results getDirStats(const std::string &dir_name, int n) {
             results.n_dirs++;
         }
             // Code run if the file path is a file rather than a directory
-        else {
+        else if (errno == ENOTDIR) {
             // Creates a new file stream that will store the data from popen
             FILE *popenFileData;
 
@@ -111,10 +135,20 @@ Results getDirStats(const std::string &dir_name, int n) {
             char popenData[4096];
 
             // Sets the filestream to contain the data from the popen command
+            errno = 0;
             popenFileData = popen(("file -b " + currentTopItem).c_str(), "r");
 
+            // Returns the results as is (terminates the parse early) if the current file cannot be opened for any reason
+            if (errno != 0)
+                return results;
+
             // Gets the data obtained from popen
-            fgets(popenData, 4096, popenFileData);
+            errno = 0;
+            fgets(popenData, PATH_MAX, popenFileData);
+
+            // Returns the results as is (terminates the parse early) if the current file cannot be opened for any reason
+            if (errno != 0)
+                return results;
 
             // Cleans the popen result by grabbing all text up to the first instance of ,
             string popenResult = string(popenData).substr(0, string(popenData).find(','));
@@ -147,7 +181,12 @@ Results getDirStats(const std::string &dir_name, int n) {
             results.all_files_size += buffer.st_size;
 
             // Creates a new file stream that will store the data from fopen
+            errno = 0;
             FILE *fopenFileData = fopen(currentTopItem.c_str(), "r");
+
+            // Returns the results as is (terminates the parse early) if the current file cannot be opened for any reason
+            if (errno != 0)
+                return results;
 
             // Loops through the entirety of the file's contents
             while (true) {
@@ -192,6 +231,9 @@ Results getDirStats(const std::string &dir_name, int n) {
             // Increments the counter keeping track of the total number of files encountered
             results.n_files++;
         }
+            // Returns the results as is (terminates the parse early) if the current directory cannot be opened
+        else
+            return results;
     }
 
     // Loops through the file type histogram and populates the most common file types results vector
