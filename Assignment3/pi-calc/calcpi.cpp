@@ -23,7 +23,11 @@ struct threadParameters {
     uint64_t counter;
 };
 
-// Creates a thread with the input being a pointer to the passed in data
+/**
+ * Function that will be used by threads to perform their work
+ * @param input - Pointer that will contain the threadedParameters struct to pass in input to the thread
+ * @return uint64_t - Pointer to an unsigned 64 bit wide integer that will store the result from the thread's work
+ */
 void *threadedWork(void *input) {
     // Initialize local counterparts to the information stored in the data struct (prevents aliasing)
     int startX = ((threadParameters *) input)->startX;
@@ -41,18 +45,13 @@ void *threadedWork(void *input) {
     return (void *) counter;
 }
 
-// count_pi() calculates the number of pixels that fall into a circle
-// using the algorithm explained here:
-//
-// https://en.wikipedia.org/wiki/Approximations_of_%CF%80
-//
-// count_pixels() takes 2 paramters:
-//  r         =  the radius of the circle
-//  n_threads =  the number of threads you should create
-//
-// Currently the function ignores the n_threads parameter. Your job is to
-// parallelize the function so that it uses n_threads threads to do
-// the computation.
+/**
+ * Function that uses the provided r (radius) and n_threads (number of threads) to count the number of pixels the area of a circle would encompass (implements https://en.wikipedia.org/wiki/Approximations_of_π#Summing_a_circle's_area )
+ * @note Implements code from pi-calc (https://gitlab.com/cpsc457/public/pi-calc) and Gabriela Wcislo's simple_pthread.cpp and thread_sum.cpp from w3d2_code
+ * @param r - Radius of the circle
+ * @param n_threads - Max number of threads that can be utilized
+ * @return uint64_t - Unsigned 64 bit wide integer that will store the number of pixels that were encompassed by the circle's area
+ */
 uint64_t count_pixels(int r, int n_threads) {
     // Stores the passed in r value
     radius = r;
@@ -63,36 +62,27 @@ uint64_t count_pixels(int r, int n_threads) {
     // Initialize an unsigned 64 bit wide integer counter that will store the final result
     uint64_t counter = 0;
 
-    // Stores the number of loop iterations (checks that will need to be performed) based on the provided radius value based on (sum (sum 1, y = 0 to radius), x = 1 to radius)
-    uint64_t totalChecksNeeded = radius * (radius + 1);
-
     // Initialize integers that will store the number of threads that will be used and how much work per thread will be assigned
     int threadsNeeded = 0;
     uint64_t workPerThread = 0;
-    uint64_t lastThreadWork = 0;
 
     // Calculates the number of runs of the outer loop that each thread needs to do (using ceiling to round up so we have an excess of threads leftover in the best case)
-    workPerThread = int(ceil((double(totalChecksNeeded) / (radius + 1)) / n_threads));
+    workPerThread = int(ceil((double(radius) / n_threads)));
 
     // Determines how many threads are necessary based on the workload we have in case we have more threads available than work that needs to be done (using floor to push off the excess work at the very end to a spare thread)
-    threadsNeeded = int(floor((double(totalChecksNeeded) / (radius + 1)) / workPerThread));
-
-    // Determines how much left over work there will be that an excess thread will have to perform (if any)
-    lastThreadWork = totalChecksNeeded - (threadsNeeded * workPerThread * (radius + 1));
+    threadsNeeded = int(floor((double(radius) / workPerThread)));
 
     // Determines if an excess thread will be needed based on if there is work left after all threads finish and will allocate it into the thread pool if required
-    if (lastThreadWork != 0)
+    if ((radius - (workPerThread * threadsNeeded)) != 0)
         threadsNeeded++;
 
     // Creates an array of threads based on the required number of threads that was computed
     pthread_t threadsArray[threadsNeeded];
 
     // Prints out the data from the above calculations
-    printf("\nChecks needed: %ld * 4 = %ld\n", totalChecksNeeded, totalChecksNeeded * 4);
     printf("Threads: %ld\n", threadsNeeded);
-    printf("Checks per thread: %ld (%lf)\n", workPerThread,
-           double(totalChecksNeeded) / (radius + 1) / n_threads);
-    printf("Checks for last thread: %ld\n\n", lastThreadWork);
+    printf("Checks per thread: %ld (%lf)\n", workPerThread, (double(radius) / n_threads));
+    printf("Checks for last thread: %ld\n\n", (radius - (workPerThread * (threadsNeeded - 1))));
 
     // If the code was specified to run on a single thread then runs the provided code as is otherwise calls the multi-threaded code
     if (n_threads == 1) {
@@ -110,6 +100,8 @@ uint64_t count_pixels(int r, int n_threads) {
 
         // Loop to assign work to each of the threads
         for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
+            printf("%d) %d -> %d\n", currentThreadIndex + 1, startX, endX);
+
             // Creates a thread based on the current x bounds that need to be worked on
             pthread_create(&threadsArray[currentThreadIndex], NULL, threadedWork,
                            (void *) new threadParameters{startX, endX, 0});
@@ -122,18 +114,18 @@ uint64_t count_pixels(int r, int n_threads) {
             if (endX > radius)
                 endX = radius;
         }
-    }
 
-    // Loop to garbage collect all the threads
-    for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
-        // Creates a pointer that will store the resulting local counter information from the thread
-        void *threadResult = 0;
+        // Loop to garbage collect all the threads
+        for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
+            // Creates a pointer that will store the resulting local counter information from the thread
+            void *threadResult = 0;
 
-        // Closes the thread and adds its stores its returned result
-        pthread_join(threadsArray[currentThreadIndex], &threadResult);
+            // Closes the thread and adds its stores its returned result
+            pthread_join(threadsArray[currentThreadIndex], &threadResult);
 
-        // Increments the main counter with the thread's localized counter (merges the results from the threads)
-        counter += reinterpret_cast<uint64_t>(threadResult);
+            // Increments the main counter with the thread's localized counter (merges the results from the threads)
+            counter += reinterpret_cast<uint64_t>(threadResult);
+        }
     }
 
     // TODO Remove below test code
@@ -142,7 +134,7 @@ uint64_t count_pixels(int r, int n_threads) {
         for (double y = 0; y <= radius; y++)
             if (x * x + y * y <= radiusSquared)
                 checkResultsCounter++;
-    printf("Expected: %ld\n", checkResultsCounter);
+    printf("\nExpected: %ld\n", checkResultsCounter);
     printf("Received: %ld\n\n", counter);
 
     // Returns 4 times the value of the counter as there are 4 quadrants when dealing with a grid (and we only solved for one quadrant as the rest are similar)
