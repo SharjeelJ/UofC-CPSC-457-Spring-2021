@@ -18,6 +18,7 @@
 #include "calcpi.h"
 #include <pthread.h>
 #include <stdio.h>
+#include <cmath>
 
 using namespace std;
 
@@ -52,11 +53,12 @@ void *threadedWork(void *input) {
 
 uint64_t count_pixels(int r, int n_threads) {
     // Stores the number of loop iterations (checks that will need to be performed) based on the provided r value based on (sum (sum 1, y = 0 to r), x = 1 to r)
-    int totalChecksNeeded = r * (r + 1);
+    uint64_t totalChecksNeeded = r * (r + 1);
 
     // Initialize integers that will store the number of threads that will be used and how much work per thread will be assigned
-    int threadsNeeded;
-    int workPerThread;
+    int threadsNeeded = 0;
+    uint64_t workPerThread = 0;
+    uint64_t lastThreadWork = 0;
 
     // Computes the number of threads that will be used and the work per thread based on if more threads are allowed than work available
     if (totalChecksNeeded <= n_threads) {
@@ -65,17 +67,29 @@ uint64_t count_pixels(int r, int n_threads) {
     }
         // Computes the number of threads that will be used and the work per thread based on if less threads are allowed than work available
     else {
-        threadsNeeded = n_threads;
-        workPerThread = totalChecksNeeded / n_threads;
+        // If the amount of work per thread is a decimal, then rounds the work per thread up (to use one less thread) and uses the last thread for any leftover work
+        if ((totalChecksNeeded % n_threads) != 0) {
+            workPerThread = int(ceil(double(totalChecksNeeded) / n_threads));
+            threadsNeeded = int(floor(double(totalChecksNeeded) / workPerThread));
+            lastThreadWork = totalChecksNeeded - (threadsNeeded * workPerThread);
+            threadsNeeded++;
+        }
+            // If the amount of work per thread can be exactly divided between the threads then does so
+        else {
+            workPerThread = double(totalChecksNeeded) / n_threads;
+            threadsNeeded = double(totalChecksNeeded) / workPerThread;
+        }
     }
 
     // Creates an array of n threadsArray
     pthread_t threadsArray[threadsNeeded];
 
     // Prints out the data from the above calculations
-    printf("\nChecks needed: %d * 4 = %d\n", totalChecksNeeded, totalChecksNeeded * 4);
-    printf("Threads: %d\nChecks per thread: %d (%lf)\n\n", threadsNeeded, workPerThread,
+    printf("\nChecks needed: %ld * 4 = %ld\n", totalChecksNeeded, totalChecksNeeded * 4);
+    printf("Threads: %ld\n", threadsNeeded);
+    printf("Checks per thread: %ld (%lf)\n", workPerThread,
            double(totalChecksNeeded) / n_threads);
+    printf("Checks for last thread: %ld\n\n", lastThreadWork);
 
     // Stores the passed in r value
     radius = r;
@@ -96,7 +110,6 @@ uint64_t count_pixels(int r, int n_threads) {
         // Integers to store the current x and y value being worked on
         int currentX = 1;
         int currentY = 0;
-
 
         // Loop to assign work to each of the threads
         for (int threadCounter = 0; threadCounter < threadsNeeded; threadCounter++) {
