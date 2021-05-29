@@ -109,9 +109,10 @@ uint64_t count_pixels(int r, int n_threads) {
         int endX = workPerThread;
 
         // Loop to assign work to each of the threads
-        for (pthread_t currentThread : threadsArray) {
+        for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
             // Creates a thread based on the current x bounds that need to be worked on
-            pthread_create(&currentThread, NULL, threadedWork, (void *) new threadParameters{startX, endX, 0});
+            pthread_create(&threadsArray[currentThreadIndex], NULL, threadedWork,
+                           (void *) new threadParameters{startX, endX, 0});
 
             // Adjusts the x bounds in preparation of the next thread
             startX += workPerThread;
@@ -124,12 +125,12 @@ uint64_t count_pixels(int r, int n_threads) {
     }
 
     // Loop to garbage collect all the threads
-    for (pthread_t currentThread : threadsArray) {
+    for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
         // Creates a pointer that will store the resulting local counter information from the thread
         void *threadResult = 0;
 
         // Closes the thread and adds its stores its returned result
-        pthread_join(currentThread, &threadResult);
+        pthread_join(threadsArray[currentThreadIndex], &threadResult);
 
         // Increments the main counter with the thread's localized counter (merges the results from the threads)
         counter += reinterpret_cast<uint64_t>(threadResult);
