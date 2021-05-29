@@ -39,15 +39,13 @@ struct threadParameters {
 // Creates a thread with the input being a pointer to the passed in data
 void *threadedWork(void *input) {
     // Prints out the data that was passed in through the custom data struct
-    printf("Thread Input: (%d,%d)\n", ((threadParameters *) input)->x, ((threadParameters *) input)->y);
+//    printf("Thread Input: (%d,%d)\n", ((threadParameters *) input)->x, ((threadParameters *) input)->y);
 
-    // Summation 1 (Loop that increments x by 1, r number of times (x starts at 1 and ends at r)
-    for (double x = 1; x <= radius; x++) //
-        // Summation 2 (Loop that increments y by 1, r number of times (starts at 0 and ends at r)
-        for (double y = 0; y <= radius; y++)
-            // Checks to see if (x^2 + y^2) <= r^2 and increments the counter if it is
-            if (x * x + y * y <= radiusSquared)
-                counter++;
+    int x = ((threadParameters *) input)->x;
+    int y = ((threadParameters *) input)->y;
+
+    if (x * x + y * y <= radiusSquared)
+        counter++;
 
     return nullptr;
 }
@@ -75,7 +73,7 @@ uint64_t count_pixels(int r, int n_threads) {
     pthread_t threadsArray[threadsNeeded];
 
     // Prints out the data from the above calculations
-    printf("Checks needed: %d * 4 = %d\n", totalChecksNeeded, totalChecksNeeded * 4);
+    printf("\nChecks needed: %d * 4 = %d\n", totalChecksNeeded, totalChecksNeeded * 4);
     printf("Threads: %d\nChecks per thread: %d (%lf)\n\n", threadsNeeded, workPerThread,
            double(totalChecksNeeded) / n_threads);
 
@@ -95,12 +93,44 @@ uint64_t count_pixels(int r, int n_threads) {
                 if (x * x + y * y <= radiusSquared)
                     counter++;
     } else {
-        pthread_create(&threadsArray[0], NULL, threadedWork, (void *) new threadParameters{1, 1});
-        pthread_create(&threadsArray[1], NULL, threadedWork, (void *) new threadParameters{1, 2});
-        pthread_join(threadsArray[0], NULL);
-        pthread_join(threadsArray[1], NULL);
-        printf("\n");
+        // Integers to store the current x and y value being worked on
+        int currentX = 1;
+        int currentY = 0;
+
+
+        // Loop to assign work to each of the threads
+        for (int threadCounter = 0; threadCounter < threadsNeeded; threadCounter++) {
+            // Creates a thread based on the current x & y values that need to be worked on
+            pthread_create(&threadsArray[threadCounter], NULL, threadedWork,
+                           (void *) new threadParameters{currentX, currentY});
+
+            // Increments the x and y values as necessary
+            if (currentY == r) {
+                currentX++;
+                currentY = 0;
+            } else
+                currentY++;
+        }
     }
+
+    // Loop to garbage collect all the threads
+    for (pthread_t currentThread : threadsArray) {
+        pthread_join(currentThread, NULL);
+    }
+
+    // Check results counter
+    int checkResultsCounter = 0;
+
+    // Summation 1 (Loop that increments x by 1, r number of times (x starts at 1 and ends at r)
+    for (double x = 1; x <= radius; x++) //
+        // Summation 2 (Loop that increments y by 1, r number of times (starts at 0 and ends at r)
+        for (double y = 0; y <= radius; y++)
+            // Checks to see if (x^2 + y^2) <= r^2 and increments the counter if it is
+            if (x * x + y * y <= radiusSquared)
+                checkResultsCounter++;
+
+    printf("Expected: %ld\n", checkResultsCounter);
+    printf("Received: %ld\n\n", counter);
 
     // Returns 4 times the value of the counter as there are 4 quadrants when dealing with a grid (and we only solved for one quadrant as the rest are similar)
     return counter * 4 + 1;
