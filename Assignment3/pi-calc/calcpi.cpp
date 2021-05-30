@@ -1,8 +1,3 @@
-// ======================================================================
-// You must modify this file and then submit it for grading to D2L.
-// ======================================================================
-
-
 #include "calcpi.h"
 #include <pthread.h>
 #include <cmath>
