@@ -12,8 +12,8 @@ double radiusSquared = 0;
 
 // Custom data struct that will store the parameters used for each thread's work
 struct threadParameters {
-    uint64_t startX;
-    uint64_t endX;
+    double startX;
+    double endX;
 };
 
 /**
@@ -85,8 +85,8 @@ uint64_t count_pixels(int r, int n_threads) {
                     resultCounter++;
     } else {
         // Integers to store the current x bounds being worked on by the threads
-        uint64_t startX = 1;
-        uint64_t endX = workPerThread;
+        double startX = 1;
+        double endX = workPerThread;
 
         // Loop to assign work to each of the threads
         for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
