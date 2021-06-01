@@ -27,6 +27,7 @@ pthread_barrier_t threadBarrier;
 // Custom data struct that will store the parameters used for each thread's work
 struct threadParameters {
     int threadNumber;
+    int totalThreads;
     vector<int64_t> numbersVector;
 };
 
@@ -66,12 +67,37 @@ void *threadWork(void *input) {
         if (shouldStopChecks)
             break;
 
-        // TODO Do parallel work
-        parallelWork(input);
+        int64_t checksPerThread =
+                5 + ((sqrt(currentNumber) / (6 * (((threadParameters *) input)->totalThreads)))) * 6;
+        int64_t start = 5;
+        int64_t end = sqrt(currentNumber);
 
-//        int64_t i = 5 * ((((threadParameters *) input)->threadNumber) + 1);
-        int64_t i = 5;
-        int64_t max = sqrt(currentNumber);
+        if ((((threadParameters *) input)->threadNumber) == 0) {
+            start = 5;
+            end = checksPerThread;
+        } else {
+            start = checksPerThread * (((threadParameters *) input)->threadNumber);
+            end = checksPerThread * ((((threadParameters *) input)->threadNumber) + 1);
+
+            while (((start - 5) % 6) != 0) {
+                start--;
+            }
+        }
+
+        if (end > sqrt(currentNumber)) {
+            end = sqrt(currentNumber);
+        }
+
+        if (start == 0)
+            start = 5;
+
+//        printf("\nTotal Checks: %ld\n", totalChecks);
+        printf("Per Thread: %ld\n", checksPerThread);
+        printf("START: %ld END: %ld\n\n", start, end);
+//        printf("TEST: %ld", test);
+
+        int64_t i = start;
+        int64_t max = end;
         while (i <= max && currentNumberResult == -1) {
             if (currentNumber % i == 0) {
                 currentNumberResult = 0;
@@ -79,9 +105,6 @@ void *threadWork(void *input) {
                 currentNumberResult = 0;
             }
             i += 6;
-//            printf("%ld) NUM: %ld i: %ld max: %ld found: %d\n", (((threadParameters *) input)->threadNumber) + 1,
-//                   currentNumber,
-//                   i, max, int(currentNumberResult));
         }
 
         // Stops all threads here unless its selected to be the serial thread which can proceed
@@ -150,7 +173,7 @@ vector<int64_t> detect_primes(const vector<int64_t> &nums, int n_threads) {
         // Loop to assign work to each of the threads
         for (int currentThreadIndex = 0; currentThreadIndex < n_threads; currentThreadIndex++) {
             pthread_create(&threadsArray[currentThreadIndex], nullptr, threadWork,
-                           (void *) new threadParameters{currentThreadIndex, nums});
+                           (void *) new threadParameters{currentThreadIndex, n_threads, nums});
         }
 
         // Loop to garbage collect all the threads
