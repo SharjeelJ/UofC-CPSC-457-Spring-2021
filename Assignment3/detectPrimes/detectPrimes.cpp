@@ -70,12 +70,12 @@ void *threadWork(void *input) {
             break;
 
         // Stores the number of checks that each thread has to perform based on the number of threads we have available
-        u_int64_t checksPerThread =
+        int64_t checksPerThread =
                 5 + ((sqrt(currentNumber) / (6 * (((threadParameters *) input)->totalThreads)))) * 6;
 
         // Initialize variables that will store the start and end values for the current thread's checks
-        u_int64_t start;
-        u_int64_t end;
+        int64_t start;
+        int64_t end;
 
         // If the current thread is the first thread then sets its starting value to 5
         if ((((threadParameters *) input)->threadNumber) == 0) {
