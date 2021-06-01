@@ -12,27 +12,24 @@ double radiusSquared = 0;
 
 // Custom data struct that will store the parameters used for each thread's work
 struct threadParameters {
-    int startX;
-    int endX;
-    uint64_t counter;
+    uint64_t startX;
+    uint64_t endX;
 };
 
 /**
  * Function that will be used by threads to perform their work
- * @param input - Pointer that will contain the threadedParameters struct to pass in input to the thread
+ * @param input - Pointer that will contain the threadParameters struct to pass in input to the thread
  * @return uint64_t - Pointer to an unsigned 64 bit wide integer that will store the result from the thread's work
  */
-void *threadedWork(void *input) {
-    // Initialize local counterparts to the information stored in the data struct (prevents aliasing)
-    int startX = ((threadParameters *) input)->startX;
-    int endX = ((threadParameters *) input)->endX;
-    uint64_t counter = ((threadParameters *) input)->counter;
+void *threadWork(void *input) {
+    // Initialize a local counter to that will store the result that will be returned
+    uint64_t counter = 0;
 
     // Loop that runs within the start and end bounds passed in through the data struct
-    for (double x = startX; x <= endX; x++)
-        // Loop that runs r + 1 number of times
+    for (double x = ((threadParameters *) input)->startX; x <= ((threadParameters *) input)->endX; x++)
+        // Loop that runs radius + 1 number of times
         for (double y = 0; y <= radius; y++)
-            // Checks to see if (x^2 + y^2) <= r^2 and increments the local counter if it is
+            // Checks to see if (x^2 + y^2) <= radius^2 and increments the local counter if it is
             if (x * x + y * y <= radiusSquared)
                 counter++;
     // Returns the local counter back to the calling code
@@ -54,11 +51,11 @@ uint64_t count_pixels(int r, int n_threads) {
     // Stores the passed in r value
     radius = r;
 
-    // Stores the r^2 value as a double (retains decimal places)
+    // Stores the radius^2 value as a double (retains decimal places)
     radiusSquared = double(radius) * radius;
 
     // Initialize an unsigned 64 bit wide integer counter that will store the final result
-    uint64_t counter = 0;
+    uint64_t resultCounter = 0;
 
     // Initialize integers that will store the number of threads that will be used and how much work per thread will be assigned
     int threadsNeeded;
@@ -79,23 +76,23 @@ uint64_t count_pixels(int r, int n_threads) {
 
     // If the code was specified to run on a single thread then runs the provided code as is otherwise calls the multi-threaded code
     if (n_threads == 1) {
-        // Loop that runs r number of times (x starts at 1 and ends at r) so runs n(INSIDE) times
+        // Loop that runs radius number of times (x starts at 1 and ends at radius) so runs n(INSIDE) times
         for (double x = 1; x <= radius; x++)
-            // Loop that runs r + 1 number of times (starts at 0 and ends at r) so runs OUTSIDE(n+1) times
+            // Loop that runs radius + 1 number of times (starts at 0 and ends at radius) so runs OUTSIDE(n+1) times
             for (double y = 0; y <= radius; y++)
-                // Checks to see if (x^2 + y^2) <= r^2 and increments the counter if it is so runs n(n+1) times
+                // Checks to see if (x^2 + y^2) <= radius^2 and increments the resultCounter if it is so runs n(n+1) times
                 if (x * x + y * y <= radiusSquared)
-                    counter++;
+                    resultCounter++;
     } else {
         // Integers to store the current x bounds being worked on by the threads
-        int startX = 1;
-        int endX = workPerThread;
+        uint64_t startX = 1;
+        uint64_t endX = workPerThread;
 
         // Loop to assign work to each of the threads
         for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
             // Creates a thread based on the current x bounds that need to be worked on
-            pthread_create(&threadsArray[currentThreadIndex], nullptr, threadedWork,
-                           (void *) new threadParameters{startX, endX, 0});
+            pthread_create(&threadsArray[currentThreadIndex], nullptr, threadWork,
+                           (void *) new threadParameters{startX, endX});
 
             // Adjusts the x bounds in preparation of the next thread
             startX += workPerThread;
@@ -108,17 +105,17 @@ uint64_t count_pixels(int r, int n_threads) {
 
         // Loop to garbage collect all the threads
         for (int currentThreadIndex = 0; currentThreadIndex < threadsNeeded; currentThreadIndex++) {
-            // Creates a pointer that will store the resulting local counter information from the thread
+            // Creates a pointer that will store the thread's counter result
             void *threadResult = 0;
 
-            // Closes the thread and adds its stores its returned result
+            // Closes the thread and stores its returned result
             pthread_join(threadsArray[currentThreadIndex], &threadResult);
 
-            // Increments the main counter with the thread's localized counter (merges the results from the threads)
-            counter += reinterpret_cast<uint64_t>(threadResult);
+            // Increments the main result counter with the thread's localized counter (merges the results from the threads)
+            resultCounter += reinterpret_cast<uint64_t>(threadResult);
         }
     }
 
-    // Returns 4 times the value of the counter as there are 4 quadrants when dealing with a grid (and we only solved for one quadrant as the rest are similar)
-    return counter * 4 + 1;
+    // Returns 4 times the value of the result counter as there are 4 quadrants when dealing with a grid (and we only solved for one quadrant as the rest are similar)
+    return resultCounter * 4 + 1;
 }
