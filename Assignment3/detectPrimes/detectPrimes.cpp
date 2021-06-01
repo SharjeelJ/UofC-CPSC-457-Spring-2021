@@ -1,7 +1,6 @@
 #include "detectPrimes.h"
 #include <pthread.h>
 #include <cmath>
-#include <cstdio>
 #include <atomic>
 
 using namespace std;
@@ -9,7 +8,7 @@ using namespace std;
 // Initialize the vector that will store all the prime numbers that were found from the input
 vector<int64_t> results;
 
-// Stores the index of next number to check
+// Stores the index of the next number to check
 int nextNumberIndex = 0;
 
 // Stores the number that is currently being checked
@@ -18,14 +17,14 @@ int64_t currentNumber = 0;
 // Boolean that will control when to stop all the threads from further checks
 atomic_bool shouldStopChecks;
 
-// Initialize an integer to store the result from the current number's check (-1 = not proven prime or not, 0 = not prime, 1 = prime)
+// Initialize an integer to store the result from the current number's check (-1 = not determined yet, 0 = not prime, 1 = prime)
 atomic_int currentNumberResult;
 
 // Initialize a thread barrier
 pthread_barrier_t threadBarrier;
 
 // Custom data struct that will store the parameters used for each thread's work
-struct threadedParameters {
+struct threadParameters {
     int threadNumber;
     int totalThreads;
     vector<int64_t> numbersVector;
@@ -33,23 +32,23 @@ struct threadedParameters {
 
 /**
  * Function that will be used by threads to perform their work
- * @param input - Pointer that will contain the threadedParameters struct to pass in input to the thread
+ * @param input - Pointer that will contain the threadParameters struct to pass in input to the thread
  */
-void *threadedWork(void *input) {
+void *threadWork(void *input) {
     // Keeps running the thread until the global stop flag has been set to true
     while (!shouldStopChecks) {
         // Stops all threads here unless its selected to be the serial thread which can proceed
         if (pthread_barrier_wait(&threadBarrier) == PTHREAD_BARRIER_SERIAL_THREAD) {
             // Checks to see if the entire input has been checked
-            if (nextNumberIndex < ((threadedParameters *) input)->numbersVector.size()) {
+            if (nextNumberIndex < ((threadParameters *) input)->numbersVector.size()) {
                 // Sets the result value of the number that will be checked back to its default value (resets pre-existing data)
                 currentNumberResult = -1;
 
                 // Grabs the next number in the input and increments the index to point to the next one for the next iteration
-                currentNumber = ((threadedParameters *) input)->numbersVector[nextNumberIndex];
+                currentNumber = ((threadParameters *) input)->numbersVector[nextNumberIndex];
                 nextNumberIndex++;
 
-                // Performs all the trivial checks
+                // Performs all the trivial checks and updates the results relating to the current number if any were conclusive
                 if (currentNumber < 2)
                     currentNumberResult = 0;
                 else if (currentNumber <= 3)
@@ -71,21 +70,21 @@ void *threadedWork(void *input) {
             break;
 
         // Stores the number of checks that each thread has to perform based on the number of threads we have available
-        int64_t checksPerThread =
-                5 + ((sqrt(currentNumber) / (6 * (((threadedParameters *) input)->totalThreads)))) * 6;
+        u_int64_t checksPerThread =
+                5 + ((sqrt(currentNumber) / (6 * (((threadParameters *) input)->totalThreads)))) * 6;
 
-        // Stores the start and end values for the current thread's checks
-        int64_t start = 5;
-        int64_t end = sqrt(currentNumber);
+        // Initialize variables that will store the start and end values for the current thread's checks
+        u_int64_t start;
+        u_int64_t end;
 
         // If the current thread is the first thread then sets its starting value to 5
-        if ((((threadedParameters *) input)->threadNumber) == 0) {
+        if ((((threadParameters *) input)->threadNumber) == 0) {
             start = 5;
             end = checksPerThread;
         } else {
             // Sets the starting and ending values based on the current and next thread's ids
-            start = checksPerThread * (((threadedParameters *) input)->threadNumber);
-            end = checksPerThread * ((((threadedParameters *) input)->threadNumber) + 1);
+            start = checksPerThread * (((threadParameters *) input)->threadNumber);
+            end = checksPerThread * ((((threadParameters *) input)->threadNumber) + 1);
 
             // Decrements the lower bound to make it compliant with the algorithm (makes sure we are starting from a valid point and performing the appropriate checks)
             while (((start - 5) % 6) != 0)
@@ -96,16 +95,14 @@ void *threadedWork(void *input) {
         if (end > sqrt(currentNumber))
             end = sqrt(currentNumber);
 
-        // Loops from the current thread's starting to ending values and performs the primality checks while also checking if the result has not been found by another thread
+        // Loops from the current thread's starting to ending values and performs the primality checks while also checking if the result has not been found by another thread (stops further checks if it has been)
         while (start <= end && currentNumberResult == -1) {
             // Updates the value storing the current number's primality to indicate that it is not a prime if the check succeeds
             if (currentNumber % start == 0)
                 currentNumberResult = 0;
-
                 // Updates the value storing the current number's primality to indicate that it is not a prime if the check succeeds
             else if (currentNumber % (start + 2) == 0)
                 currentNumberResult = 0;
-
 
             // Increments the starting value to the next number that needs to be checked
             start += 6;
@@ -154,35 +151,32 @@ static bool is_prime(int64_t n) {
  * @param n_threads - Max number of threads that can be utilized
  * @return vector - Vector of 64 bit wide integers that are prime numbers from the passed in list of numbers
  */
-vector<int64_t> detect_primes(const vector<int64_t> &nums, int n_threads) {
+std::vector<int64_t> detect_primes(const std::vector<int64_t> &nums, int n_threads) {
     // Checks to see how many threads were requested and runs the single threaded or multi-threaded code as necessary
     if (n_threads == 1) {
         // Runs the single threaded provided code
-        for (auto num : nums) {
+        for (auto num : nums)
             if (is_prime(num))
                 results.push_back(num);
-        }
     } else {
         // Creates an array of threads based on how many were requested to be used
         pthread_t threadsArray[n_threads];
 
         // Initializes the thread barrier to handle the number of threads that were requested to be used
-        pthread_barrier_init(&threadBarrier, NULL, n_threads);
+        pthread_barrier_init(&threadBarrier, nullptr, n_threads);
 
         // Sets the boolean that will control when to stop all the threads from further checks to false
         shouldStopChecks = false;
 
         // Loop to assign work to each of the threads
         for (int currentThreadIndex = 0; currentThreadIndex < n_threads; currentThreadIndex++)
-            pthread_create(&threadsArray[currentThreadIndex], nullptr, threadedWork,
-                           (void *) new threadedParameters{currentThreadIndex, n_threads, nums});
-
+            pthread_create(&threadsArray[currentThreadIndex], nullptr, threadWork,
+                           (void *) new threadParameters{currentThreadIndex, n_threads, nums});
 
         // Loop to garbage collect all the threads
         for (int currentThreadIndex = 0; currentThreadIndex < n_threads; currentThreadIndex++)
             // Closes the thread
             pthread_join(threadsArray[currentThreadIndex], nullptr);
-
 
         // Garbage collects the thread barrier
         pthread_barrier_destroy(&threadBarrier);
