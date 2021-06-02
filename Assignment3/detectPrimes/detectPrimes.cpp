@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <cmath>
 #include <atomic>
+#include <unordered_map>
 
 using namespace std;
 
@@ -9,7 +10,7 @@ using namespace std;
 vector<int64_t> results;
 
 // Stores the index of the next number to check
-int nextNumberIndex = 0;
+ulong nextNumberIndex = 0;
 
 // Stores the number that is currently being checked
 int64_t currentNumber = 0;
@@ -17,8 +18,11 @@ int64_t currentNumber = 0;
 // Boolean that will control when to stop all the threads from further checks
 atomic_bool shouldStopChecks;
 
-// Initialize an integer to store the result from the current number's check (-1 = not determined yet, 0 = not prime, 1 = prime)
+// Initialize an integer to store the result from the current number's check (0 = not determined yet, -1 = not prime, 1 = prime)
 atomic_int currentNumberResult;
+
+// Initialize an unordered map that will store the results from each of the numbers checked (to skip having to check duplicate numbers)
+unordered_map<int64_t, int> checkedNumbers;
 
 // Initialize a thread barrier
 pthread_barrier_t threadBarrier;
@@ -42,21 +46,26 @@ void *threadWork(void *input) {
             // Checks to see if the entire input has been checked
             if (nextNumberIndex < ((threadParameters *) input)->numbersVector.size()) {
                 // Sets the result value of the number that will be checked back to its default value (resets pre-existing data)
-                currentNumberResult = -1;
+                currentNumberResult = 0;
 
                 // Grabs the next number in the input and increments the index to point to the next one for the next iteration
                 currentNumber = ((threadParameters *) input)->numbersVector[nextNumberIndex];
                 nextNumberIndex++;
 
-                // Performs all the trivial checks and updates the results relating to the current number if any were conclusive
-                if (currentNumber < 2)
-                    currentNumberResult = 0;
-                else if (currentNumber <= 3)
-                    currentNumberResult = 1;
-                else if (currentNumber % 2 == 0)
-                    currentNumberResult = 0;
-                else if (currentNumber % 3 == 0)
-                    currentNumberResult = 0;
+                // Checks to see if the current number has already been checked and reuses the same result if it has
+                if (checkedNumbers[currentNumber] != 0)
+                    currentNumberResult = checkedNumbers[currentNumber];
+                else {
+                    // Performs all the trivial checks and updates the results relating to the current number if any were conclusive
+                    if (currentNumber < 2)
+                        currentNumberResult = -1;
+                    else if (currentNumber <= 3)
+                        currentNumberResult = 1;
+                    else if (currentNumber % 2 == 0)
+                        currentNumberResult = -1;
+                    else if (currentNumber % 3 == 0)
+                        currentNumberResult = -1;
+                }
             } else
                 // Sets the global flag to indicate the threads to stop if the entire input has been checked
                 shouldStopChecks = true;
@@ -96,23 +105,27 @@ void *threadWork(void *input) {
             end = sqrt(currentNumber);
 
         // Loops from the current thread's starting to ending values and performs the primality checks while also checking if the result has not been found by another thread (stops further checks if it has been)
-        while (start <= end && currentNumberResult == -1) {
+        while (start <= end && currentNumberResult == 0) {
             // Updates the value storing the current number's primality to indicate that it is not a prime if the check succeeds
             if (currentNumber % start == 0)
-                currentNumberResult = 0;
+                currentNumberResult = -1;
                 // Updates the value storing the current number's primality to indicate that it is not a prime if the check succeeds
             else if (currentNumber % (start + 2) == 0)
-                currentNumberResult = 0;
+                currentNumberResult = -1;
 
             // Increments the starting value to the next number that needs to be checked
             start += 6;
         }
 
         // Stops all threads here unless its selected to be the serial thread which can proceed
-        if (pthread_barrier_wait(&threadBarrier) == PTHREAD_BARRIER_SERIAL_THREAD)
+        if (pthread_barrier_wait(&threadBarrier) == PTHREAD_BARRIER_SERIAL_THREAD) {
             // Adds the number to the results vector if it was determined to be a prime number
-            if (currentNumberResult != 0)
+            if (currentNumberResult != -1)
                 results.push_back(currentNumber);
+
+            // Adds the number and its result to the unordered map to prevent checking a duplicate occurrence
+            checkedNumbers[currentNumber] = currentNumberResult;
+        }
 
         // All threads wait here until the serial thread catches up (adds the number to the vector if its a prime number)
         pthread_barrier_wait(&threadBarrier);
