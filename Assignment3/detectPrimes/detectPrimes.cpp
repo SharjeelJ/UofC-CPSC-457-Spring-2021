@@ -167,10 +167,25 @@ static bool is_prime(int64_t n) {
 std::vector<int64_t> detect_primes(const std::vector<int64_t> &nums, int n_threads) {
     // Checks to see how many threads were requested and runs the single threaded or multi-threaded code as necessary
     if (n_threads == 1) {
-        // Runs the single threaded provided code
-        for (auto num : nums)
-            if (is_prime(num))
-                results.push_back(num);
+        // Loops through all the numbers in the passed in vector and checks their primality (single threaded)
+        for (auto currentNumber : nums) {
+            // Sets the result value of the number that will be checked back to its default value (resets pre-existing data)
+            currentNumberResult = 0;
+
+            // Checks to see if the current number has already been checked and reuses the same result if it has
+            if (checkedNumbers[currentNumber] == 1)
+                results.push_back(currentNumber);
+            else if (checkedNumbers[currentNumber] == -1)
+                // Skips the current number as it was already determined to not being a prime number
+                continue;
+                // Checks the current number as it has not already been checked and stores its result in both the result vector and unordered map
+            else if (is_prime(currentNumber)) {
+                results.push_back(currentNumber);
+                checkedNumbers[currentNumber] = 1;
+            } else
+                // Stores the result of the current number as not being a prime number
+                checkedNumbers[currentNumber] = -1;
+        }
     } else {
         // Creates an array of threads based on how many were requested to be used
         pthread_t threadsArray[n_threads];
