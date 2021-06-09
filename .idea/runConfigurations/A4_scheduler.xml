@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="A4_scheduler" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="3 20" REDIRECT_INPUT="true" REDIRECT_INPUT_PATH="test1.txt" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$FileDir$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="UofC_CPSC_457_Spring_2021" TARGET_NAME="A4_scheduler" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="UofC_CPSC_457_Spring_2021" RUN_TARGET_NAME="A4_scheduler">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>
