@@ -3,38 +3,34 @@
 
 using namespace std;
 
+// Class that will be used to generate a graph that will be topologically sorted to find cycles in a single instance per resource type system
 class FastGraph {
 public:
     vector<vector<int>> adjacencyList;
     vector<int> outDegree;
 };
 
-/// this is the function you need to (re)implement
-///
-/// parameter edges[] contains a list of request- and assignment- edges
-///   example of a request edge, process "p1" resource "r1"
-///     "p1 -> r1"
-///   example of an assignment edge, process "XYz" resource "XYz"
-///     "XYz <- XYz"
-///
-/// You need to process edges[] one edge at a time, and run a deadlock
-/// detection after each edge. As soon as you detect a deadlock, your function
-/// needs to stop processing edges and return an instance of Result structure
-/// with edge_index set to the index that caused the deadlock, and dl_procs set
-/// to contain with names of processes that are in the deadlock.
-///
-/// To indicate no deadlock was detected after processing all edges, you must
-/// return Result with edge_index = -1 and empty dl_procs[].
-///
+/**
+ * Function that uses the provided edges vector to create a graph and checks for deadlocks via topological sort after each edge is inserted
+ * @note Implements code from deadlock-detect (https://gitlab.com/cpsc457/public/deadlock-detect)
+ * @param edges - Pointer to a string vector composed of a string for the process and resource alongside a string indicating whether a request or assignment is occurring
+ * @return result - Result struct where dl_procs are all processes current in deadlock and edge_index is the edge responsible for the deadlock
+ */
 Result detect_deadlock(const std::vector<std::string> &edges) {
-    // Initialize a vector that will store the results (what edge caused a deadlock and which processes are in deadlock)
+    // Initialize a object that will store the results (what edge caused a deadlock and which processes are in deadlock)
     Result result;
 
-    // Creates a new graph object that will store the adjacency list based on the passed in input
+    // Sets the default value of the result to indicate no cycles were detected
+    result.edge_index = -1;
+
+    // Creates a new graph object that will store the adjacency list based on the passed in input alongside each node's out degree
     FastGraph graph;
 
-    // Initialize a converter object whose job would be to take in the passed in strings and convert them to unique integers instead
+    // Initialize a converter object whose job would be to take in the passed in process and resource strings and convert them to unique integers instead
     Word2Int stringConverter;
+
+    // Initialize an unordered map that will store the unique integer ids for all the processes and resources while also storing their original string
+    unordered_map<int, string> conversionRecord;
 
     // Loops through all the edges provided and populates the graph (adjacency list and out degree vector)
     for (int counter = 0; counter < edges.size(); counter++) {
@@ -43,8 +39,10 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
 
         // Stores the current string's process, operator and resource node data
         int process = stringConverter.get("P" + cleanedStringParts[0]);
+        conversionRecord[process] = "P" + cleanedStringParts[0];
         string activity = cleanedStringParts[1];
         int resource = stringConverter.get("R" + cleanedStringParts[2]);
+        conversionRecord[resource] = "R" + cleanedStringParts[2];
 
         // Checks to see if 2 or 1 new blank entries need to be added to the graph adjacency list and out degree vector (based on how many unique nodes we will be handling this iteration)
         if (graph.adjacencyList.size() - process == -1 || graph.adjacencyList.size() - resource == -1) {
@@ -66,61 +64,42 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
             graph.outDegree[resource]++;
         }
 
-        // TODO: Remove test print
-        printf("%d %s %d ", process, activity.c_str(), resource);
-        printf("(%s)\n", edges[counter].c_str());
-
-        // Stores a local copy of the graph's out degree vector so that it can be modified
-        vector<int> out = graph.outDegree;
+        // Stores a local copy of the graph's out degree vector so that it can be modified safely for cycle detection
+        vector<int> outDegreeTemp = graph.outDegree;
 
         // Creates and populates a vector that will store all nodes with an out degree value of 0
-        vector<int> zeroes;
-        for (int counter = 0; counter < out.size(); counter++)
-            if (out[counter] == 0)
-                zeroes.push_back(counter);
+        vector<int> outDegreeZeroNodes;
+        for (int innerCounter = 0; innerCounter < outDegreeTemp.size(); innerCounter++)
+            if (outDegreeTemp[innerCounter] == 0)
+                outDegreeZeroNodes.push_back(innerCounter);
 
         // Loops through all nodes that had an out degree value of zero
-        while (!zeroes.empty()) {
-            // Pops and stores the last element from the zeroes list
-            int zeroNode = zeroes.back();
-            zeroes.pop_back();
+        while (!outDegreeZeroNodes.empty()) {
+            // Stores and pops the last element from the vector of nodes with out degree zero
+            int zeroNode = outDegreeZeroNodes.back();
+            outDegreeZeroNodes.pop_back();
 
+            // Decrements the out degree value of any nodes pointing to the current node (that was popped) and pops them out as well if they are now at out degree zero
             for (int currentNode : graph.adjacencyList[zeroNode]) {
-                out[currentNode]--;
-                if (out[currentNode] == 0)
-                    zeroes.push_back(currentNode);
+                outDegreeTemp[currentNode]--;
+                if (outDegreeTemp[currentNode] == 0)
+                    outDegreeZeroNodes.push_back(currentNode);
             }
         }
 
-        printf("SIZE: %d\n", out.size());
-
-        for (int counter = 0; counter < out.size(); counter++) {
-            if (out[process] > 0) {
+        // Loops through the shrunk graph and populates the result object if any deadlocked processes are found
+        for (int innerCounter = 0; innerCounter <= outDegreeTemp.size(); innerCounter++) {
+            if (outDegreeTemp[innerCounter] > 0 && conversionRecord[innerCounter].substr(0, 1) == "P") {
                 result.edge_index = counter;
-                result.dl_procs.push_back(cleanedStringParts[0]);
-
-                printf("ADDING: %d\n", process);
+                result.dl_procs.push_back(conversionRecord[innerCounter].substr(1));
             }
         }
 
+        // If any deadlocked processes were found then stops populating the graph further
         if (result.dl_procs.size() != 0)
             break;
     }
 
-    /*
-    out = outDegree;
-    zeroes[] = find all nodes in graph with outdegree == 0
-     while zeroes is not empty:
-        n = remove one entry from zeroes[]
-    for every n2 of adjacencyList[n]:
-         out[n2] --
-         if out[n2] == 0:
-            append n2 to zeroes[]
-    dl_procs[] = all nodes n that represent a process and out[n]>0
-    */
-
-    if (result.dl_procs.size() == 0)
-        result.edge_index = -1;
-
+    // Returns the result back to the calling code
     return result;
 }
