@@ -33,7 +33,7 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
     unordered_map<int, string> conversionRecord;
 
     // Loops through all the edges provided and populates the graph (adjacency list and out degree vector)
-    for (int counter = 0; counter < edges.size(); counter++) {
+    for (int counter = 0; counter < int(edges.size()); counter++) {
         // Vector to store parts of the current string being parsed (in the form of process, operator, resource)
         vector<string> cleanedStringParts = split(simplify(edges[counter]));
 
@@ -45,13 +45,13 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
         conversionRecord[resource] = "R" + cleanedStringParts[2];
 
         // Checks to see if 2 or 1 new blank entries need to be added to the graph adjacency list and out degree vector (based on how many unique nodes we will be handling this iteration)
-        if (graph.adjacencyList.size() - process == -1 || graph.adjacencyList.size() - resource == -1) {
-            graph.adjacencyList.push_back(vector<int>());
-            graph.adjacencyList.push_back(vector<int>());
+        if (int(graph.adjacencyList.size()) - process == -1 || int(graph.adjacencyList.size()) - resource == -1) {
+            graph.adjacencyList.emplace_back();
+            graph.adjacencyList.emplace_back();
             graph.outDegree.push_back(0);
             graph.outDegree.push_back(0);
-        } else if (graph.adjacencyList.size() - process == 0 || graph.adjacencyList.size() - resource == 0) {
-            graph.adjacencyList.push_back(vector<int>());
+        } else if (int(graph.adjacencyList.size()) - process == 0 || int(graph.adjacencyList.size()) - resource == 0) {
+            graph.adjacencyList.emplace_back();
             graph.outDegree.push_back(0);
         }
 
@@ -69,7 +69,7 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
 
         // Creates and populates a vector that will store all nodes with an out degree value of 0
         vector<int> outDegreeZeroNodes;
-        for (int innerCounter = 0; innerCounter < outDegreeTemp.size(); innerCounter++)
+        for (int innerCounter = 0; innerCounter < int(outDegreeTemp.size()); innerCounter++)
             if (outDegreeTemp[innerCounter] == 0)
                 outDegreeZeroNodes.push_back(innerCounter);
 
@@ -88,7 +88,7 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
         }
 
         // Loops through the shrunk graph and populates the result object if any deadlocked processes are found
-        for (int innerCounter = 0; innerCounter <= outDegreeTemp.size(); innerCounter++) {
+        for (int innerCounter = 0; innerCounter <= int(outDegreeTemp.size()); innerCounter++) {
             if (outDegreeTemp[innerCounter] > 0 && conversionRecord[innerCounter].substr(0, 1) == "P") {
                 result.edge_index = counter;
                 result.dl_procs.push_back(conversionRecord[innerCounter].substr(1));
@@ -96,7 +96,7 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
         }
 
         // If any deadlocked processes were found then stops populating the graph further
-        if (result.dl_procs.size() != 0)
+        if (!result.dl_procs.empty())
             break;
     }
 
