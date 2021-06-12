@@ -37,8 +37,7 @@ void simulate_rr(
 
     seq.clear();
 
-    int processOnCPU = -1; // Note processes ids start at 0, let -1 denote "idle"
-    int64_t burstRemaining = 0;
+    Process currentProcess;
 
     queue<Process> readyQueue;
     int64_t currentTime = 0;
@@ -49,8 +48,9 @@ void simulate_rr(
         if (jobsRemaining == 0) break;
 
         // Check: if process on CPU is done
-        if (processOnCPU > -1 && burstRemaining == 0) {
-            processOnCPU = -1;
+        if (currentProcess.id > -1 && currentProcess.burst == 0) {
+            processes[currentProcess.id].finish_time = currentTime;
+            currentProcess = Process();
             jobsRemaining--;
             continue;
         }
@@ -63,24 +63,25 @@ void simulate_rr(
         }
 
         // Check: if CPU is idle and ready queue is not empty
-        if (processOnCPU == -1 && !readyQueue.empty()) {
-            processOnCPU = readyQueue.front().id;
-            burstRemaining = readyQueue.front().burst;
+        if (currentProcess.id == -1 && !readyQueue.empty()) {
+            currentProcess = readyQueue.front();
+            processes[currentProcess.id].start_time = currentTime;
             readyQueue.pop();
             continue;
         }
 
         // Update the execution order if needed
-        if (seq.empty() || seq.back() != processOnCPU) {
-            seq.push_back(processOnCPU);
+        if (seq.empty() || seq.back() != currentProcess.id) {
+            seq.push_back(currentProcess.id);
         }
 
         // Print the current item on CPU
-        if (processOnCPU >= 0) cout << "T" << currentTime << ":\t P" << processOnCPU << endl;
-        else cout << "T" << currentTime << ":\t Idle" << std::endl;
+//        if (currentProcess.id >= 0) cout << "T" << currentTime << ":\t P" << currentProcess.id << endl;
+//        else cout << "T" << currentTime << ":\t Idle" << std::endl;
+        printf("Process: %d Burst: %d\n", currentProcess.id, currentProcess.burst);
 
         // Perform a CPU burst then increment the time
-        if (burstRemaining > 0) burstRemaining--;
+        if (currentProcess.burst > 0) currentProcess.burst--;
         currentTime++;
     }
 
