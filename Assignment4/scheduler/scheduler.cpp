@@ -44,7 +44,7 @@ void simulate_rr(
         // If there are no processes remaining then breaks the loop as we are done
         if (processesRemaining == 0) break;
 
-        // Checks to see if current process on the CPU is done and replaces it IDLE if it is
+        // Checks to see if current process on the CPU is done and replaces it with IDLE if it is
         if (currentProcess.id > -1 && currentProcess.burst == 0) {
             processes[currentProcess.id].finish_time = currentTime;
             currentProcess = Process();
@@ -81,6 +81,33 @@ void simulate_rr(
             continue;
         }
 
+        // TODO: Optimizations
+        if (currentProcess.id > -1 && currentProcess.burst <= quantum) {
+            if (currentTime + currentProcess.burst <= processes[processesArrived].arrival_time == currentTime) {
+                currentTime = currentTime + currentProcess.burst;
+                currentProcess.burst -= currentProcess.burst;
+                processes[currentProcess.id].finish_time = currentTime;
+            } else {
+                currentTime += currentProcess.burst - processes[processesArrived].arrival_time;
+                currentProcess.burst -= currentProcess.burst - processes[processesArrived].arrival_time;
+            }
+            continue;
+        }
+            // TODO: Check if this works
+        else if (currentProcess.id > -1 && currentProcess.burst > quantum) {
+            if (currentTime + quantum <= processes[processesArrived].arrival_time == currentTime) {
+                currentTime += quantum;
+                currentProcess.burst -= quantum;
+            } else {
+                currentTime += quantum - processes[processesArrived].arrival_time;
+                currentProcess.burst -= quantum - processes[processesArrived].arrival_time;
+            }
+            continue;
+        } else if (currentProcess.id == -1) {
+            currentTime = processes[processesArrived].arrival_time;
+            continue;
+        }
+
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
         if ((seq.empty() || seq.back() != currentProcess.id) && seq.size() < max_seq_len) {
             seq.push_back(currentProcess.id);
@@ -88,7 +115,6 @@ void simulate_rr(
 
         // Print the current item on CPU
 //        printf("%d) P:%d B:%d\n", currentTime, currentProcess.id, currentProcess.burst);
-//        printf("Start Time: %d\n", currentProcess.start_time);
 
         // Goes forward a CPU burst and increments the time spent
         if (currentProcess.burst > 0) currentProcess.burst--;
