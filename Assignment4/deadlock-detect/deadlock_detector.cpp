@@ -33,7 +33,7 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
     // Creates a new graph object that will store the adjacency list based on the passed in input
     FastGraph graph;
 
-    // Initialize a stringConverter object whose job would be to take in the passed in strings and convert them to unique integers instead
+    // Initialize a converter object whose job would be to take in the passed in strings and convert them to unique integers instead
     Word2Int stringConverter;
 
     // Loops through all the edges provided and populates the graph (adjacency list and out degree vector)
@@ -42,9 +42,9 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
         vector<string> cleanedStringParts = split(simplify(edges[counter]));
 
         // Stores the current string's process, operator and resource node data
-        int process = stringConverter.get("p" + cleanedStringParts[0]);
+        int process = stringConverter.get("P" + cleanedStringParts[0]);
         string activity = cleanedStringParts[1];
-        int resource = stringConverter.get("r" + cleanedStringParts[2]);
+        int resource = stringConverter.get("R" + cleanedStringParts[2]);
 
         // Checks to see if 2 or 1 new blank entries need to be added to the graph adjacency list and out degree vector (based on how many unique nodes we will be handling this iteration)
         if (graph.adjacencyList.size() - process == -1 || graph.adjacencyList.size() - resource == -1) {
@@ -67,41 +67,44 @@ Result detect_deadlock(const std::vector<std::string> &edges) {
         }
 
         // TODO: Remove test print
-//        printf("%s\n", edges[counter].c_str());
-        printf("%d %s %d\n\n", process, activity.c_str(), resource);
-    }
+        printf("%d %s %d ", process, activity.c_str(), resource);
+        printf("(%s)\n", edges[counter].c_str());
 
-    // Stores a local copy of the graph's out degree vector so that it can be modified
-//    vector<int> out = graph.outDegree;
+        // Stores a local copy of the graph's out degree vector so that it can be modified
+        vector<int> out = graph.outDegree;
 
-    // Creates and populates a vector that will store all nodes with an out degree value of 0
-    vector<int> zeroes;
-    for (int counter = 0; counter < graph.outDegree.size(); counter++)
-        if (graph.outDegree[counter] == 0)
-            zeroes.push_back(counter);
+        // Creates and populates a vector that will store all nodes with an out degree value of 0
+        vector<int> zeroes;
+        for (int counter = 0; counter < out.size(); counter++)
+            if (out[counter] == 0)
+                zeroes.push_back(counter);
 
-    // Loops through all nodes that had an out degree value of zero
-    while (!zeroes.empty()) {
-        // Pops and stores the last element from the zeroes list
-        int zeroNode = zeroes.back();
-        zeroes.pop_back();
+        // Loops through all nodes that had an out degree value of zero
+        while (!zeroes.empty()) {
+            // Pops and stores the last element from the zeroes list
+            int zeroNode = zeroes.back();
+            zeroes.pop_back();
 
-        for (int currentNode : graph.adjacencyList[zeroNode]) {
-            graph.outDegree[currentNode]--;
-            if (graph.outDegree[currentNode] == 0)
-                zeroes.push_back(currentNode);
+            for (int currentNode : graph.adjacencyList[zeroNode]) {
+                out[currentNode]--;
+                if (out[currentNode] == 0)
+                    zeroes.push_back(currentNode);
+            }
         }
-    }
 
-    for (int counter = 0; counter < edges.size(); counter++) {
-        // Vector to store parts of the current string being parsed (in the form of process, operator, resource)
-        vector<string> cleanedStringParts = split(simplify(edges[counter]));
+        printf("SIZE: %d\n", out.size());
 
-        // Stores the current string's process, operator and resource node data
-        int process = stringConverter.get("p" + cleanedStringParts[0]);
+        for (int counter = 0; counter < out.size(); counter++) {
+            if (out[process] > 0) {
+                result.edge_index = counter;
+                result.dl_procs.push_back(cleanedStringParts[0]);
 
-        if (graph.outDegree[process] > 0)
-            result.dl_procs.push_back(cleanedStringParts[0]);
+                printf("ADDING: %d\n", process);
+            }
+        }
+
+        if (result.dl_procs.size() != 0)
+            break;
     }
 
     /*

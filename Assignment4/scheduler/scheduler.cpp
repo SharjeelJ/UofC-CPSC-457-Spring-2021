@@ -1,7 +1,7 @@
-// you need to modify this file
-
 #include "scheduler.h"
 #include "common.h"
+
+using namespace std;
 
 // this is the function you should edit
 //
