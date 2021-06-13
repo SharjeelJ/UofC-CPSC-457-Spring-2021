@@ -50,7 +50,6 @@ void simulate_rr(
             currentProcess = Process();
             timeSpentOnCPU = 0;
             processesRemaining--;
-//            continue;
         }
             // Checks to see if the current process on the CPU has exceeded the time splice allowed per process and replaces it with the next process in the ready queue if there is one (otherwise the current process is allowed to continue)
         else if (currentProcess.id > -1 && timeSpentOnCPU >= quantum && !readyQueue.empty()) {
@@ -61,20 +60,17 @@ void simulate_rr(
             if (processes[currentProcess.id].start_time == -1)
                 processes[currentProcess.id].start_time = currentTime;
             readyQueue.pop();
-//            continue;
         }
             // Optimization 2
-        else if (currentProcess.id > -1 && readyQueue.empty() && processesRemaining == 1) {
-            currentTime += currentProcess.burst;
-            currentProcess.burst = 0;
-            continue;
+        else if (currentProcess.id > -1 && readyQueue.empty() && processesRemaining == 1 && currentProcess.burst > 1) {
+            currentTime += currentProcess.burst - 1;
+            currentProcess.burst = 1;
         }
 
         // Checks to see if there are any incoming processes and adds them to the ready queue if they have arrived
         if (processes.size() > 0 && processes[processesArrived].arrival_time == currentTime) {
             readyQueue.push(processes[processesArrived]);
             processesArrived++;
-//            continue;
         }
 
         // Checks to see if the CPU is idle and if there is a process at the front of the ready queue (has arrived) then allows the ready process to use the CPU
@@ -92,6 +88,28 @@ void simulate_rr(
             currentTime = processes[processesArrived].arrival_time - 1;
             seq.push_back(-1);
 //            continue;
+        }
+
+        // TODO: Check Optimization 1
+        if (currentProcess.id > -1 && currentProcess.burst <= quantum && processesRemaining > 1) {
+            if (currentTime + currentProcess.burst <= processes[processesArrived].arrival_time && readyQueue.empty()) {
+                currentTime += currentProcess.burst - 1;
+                currentProcess.burst -= currentProcess.burst - 1;
+                timeSpentOnCPU += currentProcess.burst - 1;
+                printf("HELLO1\n");
+            } else if (currentTime + currentProcess.burst <= processes[processesArrived].arrival_time &&
+                       currentTime + currentProcess.burst <= quantum && !readyQueue.empty()) {
+                currentTime += currentProcess.burst - 1;
+                currentProcess.burst -= currentProcess.burst - 1;
+                timeSpentOnCPU += currentProcess.burst - 1;
+                printf("HELLO2\n");
+            } else if (currentTime + currentProcess.burst >= processes[processesArrived].arrival_time &&
+                       currentTime + currentProcess.burst <= quantum && !readyQueue.empty()) {
+                currentTime += currentProcess.burst - processes[processesArrived].arrival_time - 1;
+                currentProcess.burst = currentProcess.burst - processes[processesArrived].arrival_time - 1;
+                timeSpentOnCPU += currentProcess.burst - processes[processesArrived].arrival_time - 1;
+                printf("HELLO3\n");
+            }
         }
 
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
