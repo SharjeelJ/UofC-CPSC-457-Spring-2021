@@ -23,69 +23,83 @@ void simulate_rr(
     // Clears any pre-existing entries in the schedule
     seq.clear();
 
-    int processOnCPU = -1; // Note processes ids start at 0, let -1 denote "idle"
-    int64_t burstRemaining = 0;
+    // Stores the process id of the process currently on the CPU (-1 = idle)
+    int currentProcessID = -1;
 
-    queue<pair<int, int64_t>> readyQueue; // elements are pairs: (process ID, burst remaining)
+    // Stores the remaining time left for the process to complete
+    int64_t remainingTime = 0;
+
+    // Creates a queue that will store each Process as a pair consisting of the process's id and remaining time
+    queue<pair<int, int64_t>> readyQueue;
+
+    // Stores the current time in the schedule
     int64_t currentTime = 0;
-    int jobsArrived = 0;
-    int jobsRemaining = processes.size();
 
+    // Stores how many processes have arrived
+    int processesArrived = 0;
+
+    // Stores how many processes are remaining
+    int processesRemaining = processes.size();
+
+    // Stores the time that the current process time spent on the CPU
     int64_t timeOnCPU = 0;
 
-    while (1) {
-        if (jobsRemaining == 0) break;
+    // Loops until all processes have been complete (scheduled)
+    while (true) {
+        // If there are no processes remaining then breaks the loop as we are done
+        if (processesRemaining == 0) break;
 
-        // Check: if process on CPU is done
-        if (processOnCPU > -1 && burstRemaining == 0) {
-            processes[processOnCPU].finish_time = currentTime;
-            processOnCPU = -1;
-            jobsRemaining--;
+        // Checks to see if current process on the CPU is done and replaces it with an idle process if it is
+        if (currentProcessID > -1 && remainingTime == 0) {
+            processes[currentProcessID].finish_time = currentTime;
+            currentProcessID = -1;
+            processesRemaining--;
             timeOnCPU = 0;
             continue;
         }
 
-        if (processOnCPU > -1 && timeOnCPU >= quantum && !readyQueue.empty()) {
-            readyQueue.push(make_pair(processOnCPU, burstRemaining));
-            processOnCPU = -1;
+        // Checks to see if the current process on the CPU has exceeded the time slice allowed per process and adds it back to the ready queue if there is another process waiting (otherwise the current process is allowed to continue)
+        if (currentProcessID > -1 && timeOnCPU >= quantum && !readyQueue.empty()) {
+            readyQueue.push(make_pair(currentProcessID, remainingTime));
+            currentProcessID = -1;
             timeOnCPU = 0;
             continue;
         }
 
-        // Check: if a new process is arriving
-        if (processes.size() > 0 && processes[jobsArrived].arrival_time == currentTime) {
-            if (processOnCPU > -1 && timeOnCPU >= quantum) {
-                readyQueue.push(make_pair(processOnCPU, burstRemaining));
-                processOnCPU = -1;
+        // Checks to see if there is an incoming process and adds it to the ready queue if it has arrived
+        if (processes.size() > 0 && processes[processesArrived].arrival_time == currentTime) {
+            if (currentProcessID > -1 && timeOnCPU >= quantum) {
+                readyQueue.push(make_pair(currentProcessID, remainingTime));
+                currentProcessID = -1;
                 timeOnCPU = 0;
             }
-            readyQueue.push(make_pair(jobsArrived, processes[jobsArrived].burst));
-            jobsArrived++;
+            readyQueue.push(make_pair(processesArrived, processes[processesArrived].burst));
+            processesArrived++;
             continue;
         }
 
-        // Check: if CPU is idle and ready queue is not empty
-        if (processOnCPU == -1 && !readyQueue.empty()) {
-            processOnCPU = readyQueue.front().first;
-            burstRemaining = readyQueue.front().second;
+        // Checks to see if the CPU is idle and if there is a process at the front of the ready queue (has arrived) then allows the ready process to use the CPU
+        if (currentProcessID == -1 && !readyQueue.empty()) {
+            currentProcessID = readyQueue.front().first;
+            remainingTime = readyQueue.front().second;
             readyQueue.pop();
             timeOnCPU = 0;
-            if (processes[processOnCPU].start_time == -1)
-                processes[processOnCPU].start_time = currentTime;
+            if (processes[currentProcessID].start_time == -1)
+                processes[currentProcessID].start_time = currentTime;
             continue;
         }
 
-        // Update the execution order if needed
-        if ((seq.empty() || seq.back() != processOnCPU) && seq.size() < max_seq_len) {
-            seq.push_back(processOnCPU);
+        // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
+        if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len) {
+            seq.push_back(currentProcessID);
         }
 
         // Print the current item on CPU
-        if (processOnCPU >= 0) cout << "T" << currentTime << ":\t P" << processOnCPU << endl;
+        if (currentProcessID >= 0) cout << "T" << currentTime << ":\t P" << currentProcessID << endl;
         else cout << "T" << currentTime << ":\t Idle" << endl;
 
-        // Perform a CPU burst then increment the time
-        if (burstRemaining > 0) burstRemaining--;
+        // Performs work (decrements the process's remaining time) and increments the time spent on the CPU
+        if (remainingTime > 0) remainingTime--;
         currentTime++;
         timeOnCPU++;
     }
