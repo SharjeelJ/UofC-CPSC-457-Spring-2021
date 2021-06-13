@@ -39,7 +39,7 @@ void simulate_rr(
     int processesArrived = 0;
 
     // Stores how many processes are remaining
-    int processesRemaining = processes.size();
+    int processesRemaining = int(processes.size());
 
     // Stores the time that the current process time spent on the CPU
     int64_t timeOnCPU = 0;
@@ -70,7 +70,7 @@ void simulate_rr(
         }
 
         // Checks to see if there is an incoming process and adds it to the ready queue if it has arrived
-        if (processes.size() > 0 && processes[processesArrived].arrival_time == currentTime) {
+        if (!processes.empty() && processes[processesArrived].arrival_time == currentTime) {
             if (currentProcessID > -1 && timeOnCPU >= quantum) {
                 readyQueue.push(make_pair(currentProcessID, remainingTime));
                 currentProcessID = -1;
@@ -97,7 +97,7 @@ void simulate_rr(
             currentTime += remainingTime;
             timeOnCPU += remainingTime;
             remainingTime = 0;
-            if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+            if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
                 seq.push_back(currentProcessID);
             jumpOccurred = true;
             continue;
@@ -106,7 +106,7 @@ void simulate_rr(
         // If the CPU is currently idle and there will be a process arriving in the future then skips to its arrival time (implements optimization hint 3)
         if (currentProcessID == -1 && readyQueue.empty()) {
             currentTime = processes[processesArrived].arrival_time;
-            if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+            if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
                 seq.push_back(currentProcessID);
             jumpOccurred = true;
             continue;
@@ -118,7 +118,7 @@ void simulate_rr(
                 remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
                 timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
                 currentTime += abs(currentTime - processes[processesArrived].arrival_time);
-                if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
                     seq.push_back(currentProcessID);
                 jumpOccurred = true;
                 continue;
@@ -126,7 +126,7 @@ void simulate_rr(
                 currentTime += remainingTime;
                 timeOnCPU += remainingTime;
                 remainingTime = 0;
-                if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
                     seq.push_back(currentProcessID);
                 jumpOccurred = true;
                 continue;
@@ -134,7 +134,7 @@ void simulate_rr(
         }
 
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
-        if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+        if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
             seq.push_back(currentProcessID);
 
         // Print the current item on CPU
