@@ -95,8 +95,8 @@ void simulate_rr(
         // If the current process is the last remaining process then skips to the process's end time (implements optimization hint 2)
         if (currentProcessID > -1 && processesRemaining == 1) {
             currentTime += remainingTime;
-            remainingTime = 0;
             timeOnCPU += remainingTime;
+            remainingTime = 0;
             if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
                 seq.push_back(currentProcessID);
             jumpOccurred = true;
@@ -112,27 +112,23 @@ void simulate_rr(
             continue;
         }
 
-        // TODO: Optimization 1 & 4
-//        printf("TEST: %ld %ld %d\n", abs(currentTime - processes[processesArrived].arrival_time), remainingTime,
-        readyQueue.size());
+        // If there is no processes waiting in the ready queue then skips either to the arrival time of the next process or the end time of the current process based on the smaller value (implements optimization hint 4)
         if (currentProcessID > -1 && readyQueue.empty()) {
             if (abs(currentTime - processes[processesArrived].arrival_time) <= remainingTime) {
-                currentTime += abs(currentTime - processes[processesArrived].arrival_time);
                 remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
                 timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
+                currentTime += abs(currentTime - processes[processesArrived].arrival_time);
                 if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
                     seq.push_back(currentProcessID);
                 jumpOccurred = true;
-//                printf("Hit 1\n");
                 continue;
             } else if (abs(currentTime - processes[processesArrived].arrival_time) > remainingTime) {
                 currentTime += remainingTime;
-                remainingTime = 0;
                 timeOnCPU += remainingTime;
+                remainingTime = 0;
                 if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
                     seq.push_back(currentProcessID);
                 jumpOccurred = true;
-//                printf("Hit 2\n");
                 continue;
             }
         }
