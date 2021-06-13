@@ -174,6 +174,62 @@ void simulate_rr(
             }
         }
 
+        // TODO: Start of experimental code (to implement the hard optimization)
+        bool conditionsMet = true;
+
+        int64_t shortestJumpTime = abs(currentTime - processes[processesArrived].arrival_time);
+
+        queue<pair<int, int64_t>> queueClone = readyQueue;
+
+        for (int counter = 0; counter < readyQueue.size(); counter++) {
+            if (queueClone.front().second < shortestJumpTime) {
+                shortestJumpTime = queueClone.front().second;
+            }
+            if (processes[queueClone.front().first].start_time == -1) {
+                conditionsMet = false;
+                break;
+            }
+            queueClone.pop();
+        }
+
+        if ((remainingTime - 1) < shortestJumpTime)
+            shortestJumpTime = remainingTime - 1;
+
+        int64_t maxPossibleJumps = floor(shortestJumpTime / (readyQueue.size() * quantum));
+
+        int64_t jumpTime = maxPossibleJumps * readyQueue.size() * quantum;
+
+        // Hard optimization hint
+        if (currentProcessID > -1 && !readyQueue.empty() && maxPossibleJumps > 0 &&
+            jumpTime > quantum &&
+            conditionsMet) {
+
+            printf("\nCurrent Process: %ld Left: %ld\n", currentProcessID, remainingTime);
+            printf("Time before: %ld Queue: %ld\n", currentTime, readyQueue.size());
+            printf("Shortest jump: %ld\n", shortestJumpTime);
+            printf("Max jump: %ld\n", maxPossibleJumps);
+
+            currentTime += jumpTime;
+
+            printf("Time after: %ld Queue: %ld\n", currentTime, readyQueue.size());
+
+            for (int counter = 0; counter < readyQueue.size(); counter++) {
+                pair<int, int64_t> currentPair = readyQueue.front();
+                readyQueue.pop();
+                readyQueue.push(make_pair(currentPair.first,
+                                          currentPair.second - jumpTime));
+                printf("TEST: %ld %ld\n", currentPair.second, readyQueue.back().second);
+            }
+
+            remainingTime -= jumpTime;
+
+            jumpOccurred = true;
+            printf("Current Process: %ld Left: %ld\n", currentProcessID, remainingTime);
+            continue;
+        }
+        // TODO: End of experimental code (to implement the hard optimization)
+
+
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
         if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
             seq.push_back(currentProcessID);
