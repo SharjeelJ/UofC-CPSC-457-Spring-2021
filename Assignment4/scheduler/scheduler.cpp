@@ -44,6 +44,9 @@ void simulate_rr(
     // Stores the time that the current process time spent on the CPU
     int64_t timeOnCPU = 0;
 
+    // Stores a boolean to keep track of when a time jump occurs to prevent incrementing the time for that iteration
+    bool jumpOccurred = false;
+
     // Loops until all processes have been complete (scheduled)
     while (true) {
         // If there are no processes remaining then breaks the loop as we are done
@@ -89,18 +92,40 @@ void simulate_rr(
             continue;
         }
 
-        // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
-        if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len) {
-            seq.push_back(currentProcessID);
+        // If the current process is the last remaining process then skips to the process's end time (implements optimization hint 2)
+        if (currentProcessID > -1 && processesRemaining == 1) {
+            currentTime += remainingTime;
+            remainingTime = 0;
+            timeOnCPU += remainingTime;
+            if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                seq.push_back(currentProcessID);
+            jumpOccurred = true;
+            continue;
         }
+
+        // If the CPU is currently idle and there will be a process arriving in the future then skips to its arrival time (implements optimization hint 3)
+        if (currentProcessID == -1 && readyQueue.empty()) {
+            currentTime = processes[processesArrived].arrival_time;
+            if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                seq.push_back(currentProcessID);
+            jumpOccurred = true;
+            continue;
+        }
+
+        // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
+        if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+            seq.push_back(currentProcessID);
 
         // Print the current item on CPU
         if (currentProcessID >= 0) cout << "T" << currentTime << ":\t P" << currentProcessID << endl;
         else cout << "T" << currentTime << ":\t Idle" << endl;
 
-        // Performs work (decrements the process's remaining time) and increments the time spent on the CPU
-        if (remainingTime > 0) remainingTime--;
-        currentTime++;
-        timeOnCPU++;
+        // Performs work (decrements the process's remaining time) and increments the time spent on the CPU if a jump hasn't occurred this run
+        if (!jumpOccurred) {
+            if (remainingTime > 0) remainingTime--;
+            currentTime++;
+            timeOnCPU++;
+        } else
+            jumpOccurred = false;
     }
 }
