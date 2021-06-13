@@ -48,11 +48,12 @@ void simulate_rr(
         if (currentProcess.id > -1 && currentProcess.burst == 0) {
             processes[currentProcess.id].finish_time = currentTime;
             currentProcess = Process();
+            timeSpentOnCPU = 0;
             processesRemaining--;
-            continue;
+//            continue;
         }
             // Checks to see if the current process on the CPU has exceeded the time splice allowed per process and replaces it with the next process in the ready queue if there is one (otherwise the current process is allowed to continue)
-        else if (currentProcess.id > -1 && timeSpentOnCPU == quantum && !readyQueue.empty()) {
+        else if (currentProcess.id > -1 && timeSpentOnCPU >= quantum && !readyQueue.empty()) {
             readyQueue.push(currentProcess);
             currentProcess = readyQueue.front();
             timeSpentOnCPU = 0;
@@ -60,6 +61,12 @@ void simulate_rr(
             if (processes[currentProcess.id].start_time == -1)
                 processes[currentProcess.id].start_time = currentTime;
             readyQueue.pop();
+//            continue;
+        }
+            // Optimization 2
+        else if (currentProcess.id > -1 && readyQueue.empty() && processesRemaining == 1) {
+            currentTime += currentProcess.burst;
+            currentProcess.burst = 0;
             continue;
         }
 
@@ -67,10 +74,10 @@ void simulate_rr(
         if (processes.size() > 0 && processes[processesArrived].arrival_time == currentTime) {
             readyQueue.push(processes[processesArrived]);
             processesArrived++;
-            continue;
+//            continue;
         }
 
-        // Checks to see if the CPU is idle and if there is a process at the front of the ready queue (has arrived) and allows the ready process to use the CPU
+        // Checks to see if the CPU is idle and if there is a process at the front of the ready queue (has arrived) then allows the ready process to use the CPU
         if (currentProcess.id == -1 && !readyQueue.empty()) {
             currentProcess = readyQueue.front();
             // Sets the start time of the incoming process if it has never ran before
@@ -78,34 +85,13 @@ void simulate_rr(
                 processes[currentProcess.id].start_time = currentTime;
             timeSpentOnCPU = 0;
             readyQueue.pop();
-            continue;
+//            continue;
         }
-
-        // TODO: Optimizations
-        if (currentProcess.id > -1 && currentProcess.burst <= quantum) {
-            if (currentTime + currentProcess.burst <= processes[processesArrived].arrival_time == currentTime) {
-                currentTime = currentTime + currentProcess.burst;
-                currentProcess.burst -= currentProcess.burst;
-                processes[currentProcess.id].finish_time = currentTime;
-            } else {
-                currentTime += currentProcess.burst - processes[processesArrived].arrival_time;
-                currentProcess.burst -= currentProcess.burst - processes[processesArrived].arrival_time;
-            }
-            continue;
-        }
-            // TODO: Check if this works
-        else if (currentProcess.id > -1 && currentProcess.burst > quantum) {
-            if (currentTime + quantum <= processes[processesArrived].arrival_time == currentTime) {
-                currentTime += quantum;
-                currentProcess.burst -= quantum;
-            } else {
-                currentTime += quantum - processes[processesArrived].arrival_time;
-                currentProcess.burst -= quantum - processes[processesArrived].arrival_time;
-            }
-            continue;
-        } else if (currentProcess.id == -1) {
-            currentTime = processes[processesArrived].arrival_time;
-            continue;
+            // Optimization 3
+        else if (currentProcess.id == -1 && readyQueue.empty() && processesRemaining >= 1) {
+            currentTime = processes[processesArrived].arrival_time - 1;
+            seq.push_back(-1);
+//            continue;
         }
 
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
@@ -114,11 +100,15 @@ void simulate_rr(
         }
 
         // Print the current item on CPU
-//        printf("%d) P:%d B:%d\n", currentTime, currentProcess.id, currentProcess.burst);
+        printf("%d) P:%d S:%d B:%d\n", currentTime, currentProcess.id, timeSpentOnCPU, currentProcess.burst);
+//        printf("%d\n%d\n%d\n%d\n\n", currentProcess.id, currentTime, readyQueue.size(), currentProcess.burst);
 
         // Goes forward a CPU burst and increments the time spent
         if (currentProcess.burst > 0) currentProcess.burst--;
         currentTime++;
         timeSpentOnCPU++;
     }
+
+    // Pops off the last entry from the sequence (-1)
+    seq.pop_back();
 }
