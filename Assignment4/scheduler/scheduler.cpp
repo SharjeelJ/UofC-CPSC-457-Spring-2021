@@ -133,6 +133,27 @@ void simulate_rr(
             }
         }
 
+        // If the current process's remaining time is less than a quantum - time elapsed on CPU, then skips to either the arrival time of the next process or the end of the slice based on the smaller value (implements optimization hint 1)
+        if (currentProcessID > -1 && remainingTime <= abs(timeOnCPU - quantum)) {
+            if (abs(currentTime - processes[processesArrived].arrival_time) <= abs(timeOnCPU - quantum)) {
+                remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
+                timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
+                currentTime += abs(currentTime - processes[processesArrived].arrival_time);
+                if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
+                    seq.push_back(currentProcessID);
+                jumpOccurred = true;
+                continue;
+            } else if (abs(currentTime - processes[processesArrived].arrival_time) > abs(timeOnCPU - quantum)) {
+                currentTime += abs(timeOnCPU - quantum);
+                timeOnCPU += abs(timeOnCPU - quantum);
+                remainingTime = abs(timeOnCPU - quantum);
+                if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
+                    seq.push_back(currentProcessID);
+                jumpOccurred = true;
+                continue;
+            }
+        }
+
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
         if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
             seq.push_back(currentProcessID);
