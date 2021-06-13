@@ -112,6 +112,31 @@ void simulate_rr(
             continue;
         }
 
+        // TODO: Optimization 1 & 4
+//        printf("TEST: %ld %ld %d\n", abs(currentTime - processes[processesArrived].arrival_time), remainingTime,
+        readyQueue.size());
+        if (currentProcessID > -1 && readyQueue.empty()) {
+            if (abs(currentTime - processes[processesArrived].arrival_time) <= remainingTime) {
+                currentTime += abs(currentTime - processes[processesArrived].arrival_time);
+                remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
+                timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
+                if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                    seq.push_back(currentProcessID);
+                jumpOccurred = true;
+//                printf("Hit 1\n");
+                continue;
+            } else if (abs(currentTime - processes[processesArrived].arrival_time) > remainingTime) {
+                currentTime += remainingTime;
+                remainingTime = 0;
+                timeOnCPU += remainingTime;
+                if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
+                    seq.push_back(currentProcessID);
+                jumpOccurred = true;
+//                printf("Hit 2\n");
+                continue;
+            }
+        }
+
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
         if ((seq.empty() || seq.back() != currentProcessID) && seq.size() < max_seq_len)
             seq.push_back(currentProcessID);
