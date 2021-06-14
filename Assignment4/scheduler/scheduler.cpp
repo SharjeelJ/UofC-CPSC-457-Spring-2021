@@ -1,8 +1,6 @@
 #include "scheduler.h"
 #include "common.h"
 #include <queue>
-#include <cmath>
-#include <iostream>
 
 using namespace std;
 
@@ -94,10 +92,8 @@ void simulate_rr(
 
         // If the current process's remaining time is less than a quantum - time elapsed on CPU, then skips to either the arrival time of the next process or the end of the slice based on the smaller value (implements optimization hint 1)
         if (currentProcessID > -1 && remainingTime <= abs(timeOnCPU - quantum)) {
-            // TODO FIX
             if (abs(currentTime - processes[processesArrived].arrival_time) <= abs(timeOnCPU - quantum) &&
                 abs(currentTime - processes[processesArrived].arrival_time) <= remainingTime) {
-                printf("OPT1.1\n");
                 remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
                 timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
                 currentTime = processes[processesArrived].arrival_time;
@@ -105,11 +101,8 @@ void simulate_rr(
                     seq.push_back(currentProcessID);
                 jumpOccurred = true;
                 continue;
-            }
-                // TODO Check
-            else if (abs(currentTime - processes[processesArrived].arrival_time) <= abs(timeOnCPU - quantum) &&
-                     abs(currentTime - processes[processesArrived].arrival_time) > remainingTime) {
-                printf("OPT1.2\n");
+            } else if (abs(currentTime - processes[processesArrived].arrival_time) <= abs(timeOnCPU - quantum) &&
+                       abs(currentTime - processes[processesArrived].arrival_time) > remainingTime) {
                 currentTime += remainingTime;
                 timeOnCPU += remainingTime;
                 remainingTime = 0;
@@ -118,7 +111,6 @@ void simulate_rr(
                 jumpOccurred = true;
                 continue;
             } else if (abs(currentTime - processes[processesArrived].arrival_time) > abs(timeOnCPU - quantum)) {
-                printf("OPT1.3\n");
                 currentTime += remainingTime;
                 timeOnCPU += remainingTime;
                 remainingTime = 0;
@@ -131,7 +123,6 @@ void simulate_rr(
 
         // If the current process is the last remaining process then skips to the process's end time (implements optimization hint 2)
         if (currentProcessID > -1 && processesRemaining == 1) {
-            printf("OPT2\n");
             currentTime += remainingTime;
             timeOnCPU += remainingTime;
             remainingTime = 0;
@@ -143,7 +134,6 @@ void simulate_rr(
 
         // If the CPU is currently idle and there will be a process arriving in the future then skips to its arrival time (implements optimization hint 3)
         if (currentProcessID == -1 && readyQueue.empty()) {
-            printf("OPT3\n");
             currentTime = processes[processesArrived].arrival_time;
             if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
                 seq.push_back(currentProcessID);
@@ -154,7 +144,6 @@ void simulate_rr(
         // If there is no processes waiting in the ready queue then skips either to the arrival time of the next process or the end time of the current process based on the smaller value (implements optimization hint 4)
         if (currentProcessID > -1 && readyQueue.empty()) {
             if (currentTime + remainingTime > processes[processesArrived].arrival_time) {
-                printf("OPT4.1\n");
                 remainingTime -= abs(currentTime - processes[processesArrived].arrival_time);
                 timeOnCPU += abs(currentTime - processes[processesArrived].arrival_time);
                 currentTime = processes[processesArrived].arrival_time;
@@ -163,7 +152,6 @@ void simulate_rr(
                 jumpOccurred = true;
                 continue;
             } else if (currentTime + remainingTime <= processes[processesArrived].arrival_time) {
-                printf("OPT4.2\n");
                 currentTime += remainingTime;
                 timeOnCPU += remainingTime;
                 remainingTime = 0;
@@ -174,69 +162,9 @@ void simulate_rr(
             }
         }
 
-        // TODO: Start of experimental code (to implement the hard optimization)
-        bool conditionsMet = true;
-
-        int64_t shortestJumpTime = abs(currentTime - processes[processesArrived].arrival_time);
-
-        queue<pair<int, int64_t>> queueClone = readyQueue;
-
-        for (int counter = 0; counter < readyQueue.size(); counter++) {
-            if (queueClone.front().second < shortestJumpTime) {
-                shortestJumpTime = queueClone.front().second;
-            }
-            if (processes[queueClone.front().first].start_time == -1) {
-                conditionsMet = false;
-                break;
-            }
-            queueClone.pop();
-        }
-
-        if ((remainingTime - 1) < shortestJumpTime)
-            shortestJumpTime = remainingTime - 1;
-
-        int64_t maxPossibleJumps = floor(shortestJumpTime / (readyQueue.size() * quantum));
-
-        int64_t jumpTime = maxPossibleJumps * readyQueue.size() * quantum;
-
-        // Hard optimization hint
-        if (currentProcessID > -1 && !readyQueue.empty() && maxPossibleJumps > 0 &&
-            jumpTime > quantum &&
-            conditionsMet) {
-
-            printf("\nCurrent Process: %ld Left: %ld\n", currentProcessID, remainingTime);
-            printf("Time before: %ld Queue: %ld\n", currentTime, readyQueue.size());
-            printf("Shortest jump: %ld\n", shortestJumpTime);
-            printf("Max jump: %ld\n", maxPossibleJumps);
-
-            currentTime += jumpTime;
-
-            printf("Time after: %ld Queue: %ld\n", currentTime, readyQueue.size());
-
-            for (int counter = 0; counter < readyQueue.size(); counter++) {
-                pair<int, int64_t> currentPair = readyQueue.front();
-                readyQueue.pop();
-                readyQueue.push(make_pair(currentPair.first,
-                                          currentPair.second - jumpTime));
-                printf("TEST: %ld %ld\n", currentPair.second, readyQueue.back().second);
-            }
-
-            remainingTime -= jumpTime;
-
-            jumpOccurred = true;
-            printf("Current Process: %ld Left: %ld\n", currentProcessID, remainingTime);
-            continue;
-        }
-        // TODO: End of experimental code (to implement the hard optimization)
-
-
         // Adds to the schedule sequence if necessary (is a condensed schedule that doesn't exceed the length specified by the calling code)
         if ((seq.empty() || seq.back() != currentProcessID) && int64_t(seq.size()) < max_seq_len)
             seq.push_back(currentProcessID);
-
-        // Print the current item on CPU
-        if (currentProcessID >= 0) cout << "T" << currentTime << ":\t P" << currentProcessID << endl;
-        else cout << "T" << currentTime << ":\t Idle" << endl;
 
         // Performs work (decrements the process's remaining time) and increments the time spent on the CPU if a jump hasn't occurred this run
         if (!jumpOccurred) {
