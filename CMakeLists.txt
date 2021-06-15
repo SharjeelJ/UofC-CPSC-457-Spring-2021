@@ -23,3 +23,5 @@ add_executable(A3_calcpi Assignment3/pi-calc/main.cpp Assignment3/pi-calc/calcpi
 add_executable(A3_detectPrimes Assignment3/detectPrimes/main.cpp Assignment3/detectPrimes/detectPrimes.cpp)
 add_executable(A4_deadlock Assignment4/deadlock-detect/main.cpp Assignment4/deadlock-detect/common.cpp Assignment4/deadlock-detect/deadlock_detector.cpp)
 add_executable(A4_scheduler Assignment4/scheduler/main.cpp Assignment4/scheduler/common.cpp Assignment4/scheduler/scheduler.cpp)
+add_executable(A5_memsim Assignment5/memsim/main.cpp Assignment5/memsim/memsim.cpp)
+add_executable(A5_fatsim Assignment5/fatsim/main.cpp Assignment5/fatsim/fatsim.cpp)
