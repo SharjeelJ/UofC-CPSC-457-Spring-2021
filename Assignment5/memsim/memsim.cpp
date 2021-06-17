@@ -41,7 +41,7 @@ struct Simulator {
     int64_t pageSize = 0;
 
     // Sets the iterator keeping track of the last memory partition's address
-    PartitionAddress lastMemoryPartitionAddress = allocatedPartitions.begin();
+    PartitionAddress memoryPartitionIterator = allocatedPartitions.begin();
 
     // Creates the result struct that will store the results if the calling code requests them and stores default values into its elements
     MemSimResult result = {0, 0, 0};
@@ -78,27 +78,76 @@ struct Simulator {
             result.n_pages_requested += requestedPages;
 
             // Creates a partition based on the specified tag and size
-            allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
+            allocatedPartitions.push_back(Partition{tag, size, memoryPartitionIterator->address});
 
-            // Updates the address to point to the newly created first partition
-            lastMemoryPartitionAddress = allocatedPartitions.begin();
+            // Updates the iterator to point to the newly created first partition
+            memoryPartitionIterator = allocatedPartitions.begin();
 
             // Adds the partition's address to the partition lookup table using its tag as the key
-            partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
+            partitionLookupTable[tag].push_back(memoryPartitionIterator);
 
             // Inserts the unused space generated when a new page was created as an empty partition
-            allocatedPartitions.push_back(Partition{-1, requestedMemory - size, lastMemoryPartitionAddress->address +
-                                                                                lastMemoryPartitionAddress->size});
+            allocatedPartitions.push_back(Partition{-1, requestedMemory - size, memoryPartitionIterator->address +
+                                                                                memoryPartitionIterator->size});
 
             // Stores the unused space generated when a new page was created
             unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
 
             // Increments the iterator to now point to the empty space partition
-            lastMemoryPartitionAddress.operator++();
+            memoryPartitionIterator.operator++();
         }
             // Code run if an existing partition already exists
         else {
+            // Gets the largest unallocated partition based on size (gets the partition with the smallest tag in the case of a tie)
+            auto largestUnallocatedPartition = unallocatedPartitions.begin();
 
+            // Stores the total number of pages that need to be requested
+            int64_t requestedPages = ceil(double(abs((*largestUnallocatedPartition)->size - size)) / pageSize);
+
+            // Stores the total size of the partition being added
+            int64_t requestedMemory = requestedPages * pageSize;
+
+            // Increments how many pages had to be requested in total
+            result.n_pages_requested += requestedPages;
+
+            // Checks to see if more pages need to be requested or if the request can be fit into an existing partition
+            if (requestedPages == 0) {
+
+            }
+                // Code run if more pages needed to be requested (means that the partition we will insert is at the end)
+            else {
+                // Stores the existing largest unallocated partition's free space
+                int64_t existingUnallocatedSize = (*largestUnallocatedPartition)->size;
+
+                // Decrements the iterator to now point to the previous partition (non empty)
+                memoryPartitionIterator.operator--();
+
+                // Removes the free space partition
+                unallocatedPartitions.erase(largestUnallocatedPartition);
+                allocatedPartitions.erase(*largestUnallocatedPartition);
+
+                // Creates a partition based on the specified tag and size at the end
+                allocatedPartitions.push_back(
+                        Partition{tag, size, memoryPartitionIterator->address + memoryPartitionIterator->size});
+
+                // Updates the iterator to point to the newly created partition
+                memoryPartitionIterator.operator++();
+
+                // Adds the partition's address to the partition lookup table using its tag as the key
+                partitionLookupTable[tag].push_back(memoryPartitionIterator);
+
+                // Inserts the unused space generated when a new page was created as an empty partition
+                allocatedPartitions.push_back(
+                        Partition{-1, existingUnallocatedSize + requestedMemory - size,
+                                  memoryPartitionIterator->address +
+                                  memoryPartitionIterator->size});
+
+                // Stores the unused space generated when a new page was created
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+
+                // Increments the iterator to now point to the empty space partition
+                memoryPartitionIterator.operator++();
+            }
         }
     }
 
@@ -113,8 +162,8 @@ struct Simulator {
 
     // Function to return the results back to the calling code based on the current memory partitioning
     MemSimResult getStats() {
-        result.max_free_partition_address = lastMemoryPartitionAddress->address;
-        result.max_free_partition_size = lastMemoryPartitionAddress->size;
+        result.max_free_partition_address = memoryPartitionIterator->address;
+        result.max_free_partition_size = memoryPartitionIterator->size;
         return result;
     }
 

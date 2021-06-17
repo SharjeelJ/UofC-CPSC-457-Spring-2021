@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.17)
 project(UofC_CPSC_457_Spring_2021)
 
 # Set C++ build flags
-set(CMAKE_CXX_FLAGS "-O2 -Wall")
+#set(CMAKE_CXX_FLAGS "-O2 -Wall")
 
 # Set verbose build
 set(CMAKE_VERBOSE_MAKEFILE ON)
