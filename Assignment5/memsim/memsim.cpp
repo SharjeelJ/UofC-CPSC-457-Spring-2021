@@ -68,57 +68,33 @@ struct Simulator {
 
         // Checks to see if the current memory allocation call is the first call since the simulator was initialized
         if (allocatedPartitions.empty()) {
-            // If the size of the requested partition is larger than the specified page size, then scales the created partition to be a multiple of the page size that fits the requested partition size
-            if (size >= pageSize) {
-                // Increments how many pages had to be requested in total
-                result.n_pages_requested++;
+            // Stores the total number of pages that need to be requested
+            int64_t requestedPages = ceil(double(size) / pageSize);
 
-                // Stores the total size of the partition being added
-                int64_t requestedMemory = ceil(double(size) / pageSize) * pageSize;
+            // Stores the total size of the partition being added
+            int64_t requestedMemory = requestedPages * pageSize;
 
-                // Creates a partition based on the specified tag and size
-                allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
+            // Increments how many pages had to be requested in total
+            result.n_pages_requested += requestedPages;
 
-                // Updates the address to point to the newly created first partition
-                lastMemoryPartitionAddress = allocatedPartitions.begin();
+            // Creates a partition based on the specified tag and size
+            allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
 
-                // Adds the partition's address to the partition lookup table using its tag as the key
-                partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
+            // Updates the address to point to the newly created first partition
+            lastMemoryPartitionAddress = allocatedPartitions.begin();
 
-                // Inserts the unused space generated when a new page was created as an empty partition
-                allocatedPartitions.push_back(
-                        Partition{-1, requestedMemory - size, lastMemoryPartitionAddress->address});
+            // Adds the partition's address to the partition lookup table using its tag as the key
+            partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
 
-                // Stores the unused space generated when a new page was created
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+            // Inserts the unused space generated when a new page was created as an empty partition
+            allocatedPartitions.push_back(Partition{-1, requestedMemory - size, lastMemoryPartitionAddress->address +
+                                                                                lastMemoryPartitionAddress->size});
 
-                // Increments the iterator to now point to the empty space partition
-                lastMemoryPartitionAddress.operator++();
-            }
-                // Creates a partition that is the page size
-            else {
-                // Increments how many pages had to be requested in total
-                result.n_pages_requested++;
+            // Stores the unused space generated when a new page was created
+            unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
 
-                // Creates a partition based on the specified tag and size
-                allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
-
-                // Updates the address to point to the newly created first partition
-                lastMemoryPartitionAddress = allocatedPartitions.begin();
-
-                // Adds the partition's address to the partition lookup table using its tag as the key
-                partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
-
-                // Inserts the unused space generated when a new page was created as an empty partition
-                allocatedPartitions.push_back(
-                        Partition{-1, pageSize - size, lastMemoryPartitionAddress->address});
-
-                // Stores the unused space generated when a new page was created
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
-
-                // Increments the iterator to now point to the empty space partition
-                lastMemoryPartitionAddress.operator++();
-            }
+            // Increments the iterator to now point to the empty space partition
+            lastMemoryPartitionAddress.operator++();
         }
             // Code run if an existing partition already exists
         else {
