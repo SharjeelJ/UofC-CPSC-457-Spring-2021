@@ -1,18 +1,57 @@
-// this is the file you need to edit
-// -------------------------------------------------------------------------------------
-// you don't have to use any of the code below, but you can
-
 #include "memsim.h"
 #include <iostream>
-#include <cassert>
+#include <list>
+#include <set>
+#include <unordered_map>
+#include <cmath>
 
-// I suggest you implement the simulator as a class. This is only a suggestion.
-// Feel free to ignore it.
+using namespace std;
+
+// Creates a struct that will store the tag, size and address of each partition
+struct Partition {
+    int tag;
+    int64_t size, address;
+};
+
+// Creates an iterator for the doubly linked list consisting of Partition structs
+typedef list<Partition>::iterator PartitionAddress;
+
+// Custom comparator struct that will be used to sort free partitions
+struct customComparator {
+    bool operator()(const PartitionAddress &c1, const PartitionAddress &c2) const {
+        if (c1->size == c2->size)
+            return c1->address < c2->address;
+        else
+            return c1->size > c2->size;
+    }
+};
+
+// Struct that will simulate memory handling
 struct Simulator {
+    // Doubly linked list that will store all the memory partitions (by default has a single partition of size 0)
+    list<Partition> allocatedPartitions;
+
+    // Set containing all the memory partitions from the doubly linked list in sorted order based on the size/address
+    set<PartitionAddress, customComparator> unallocatedPartitions;
+
+    // Unordered map that will store all the partitions tied to a specific tag
+    unordered_map<long, vector<PartitionAddress>> partitionLookupTable;
+
+    // Stores the page size value specified by the calling code (will determine partition sizes)
+    int64_t pageSize = 0;
+
+    // Sets the iterator keeping track of the last memory partition's address
+    PartitionAddress lastMemoryPartitionAddress = allocatedPartitions.begin();
+
+    // Creates the result struct that will store the results if the calling code requests them and stores default values into its elements
+    MemSimResult result = {0, 0, 0};
+
+    // Constructor that will store the page file sized specified by the calling code
     Simulator(int64_t page_size) {
-        // constructor
+        pageSize = page_size;
     }
 
+    // Function to allocate memory
     void allocate(int tag, int size) {
         // Pseudocode for allocation request:
         // - search through the list of partitions from start to end, and
@@ -26,8 +65,68 @@ struct Simulator {
         // - split the best partition in two if necessary
         //     - mark the first partition occupied, and store the tag in it
         //     - mark the second partition free
+
+        // Checks to see if the current memory allocation call is the first call since the simulator was initialized
+        if (allocatedPartitions.empty()) {
+            // If the size of the requested partition is larger than the specified page size, then scales the created partition to be a multiple of the page size that fits the requested partition size
+            if (size >= pageSize) {
+                // Increments how many pages had to be requested in total
+                result.n_pages_requested++;
+
+                // Stores the total size of the partition being added
+                int64_t requestedMemory = ceil(double(size) / pageSize) * pageSize;
+
+                // Creates a partition based on the specified tag and size
+                allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
+
+                // Updates the address to point to the newly created first partition
+                lastMemoryPartitionAddress = allocatedPartitions.begin();
+
+                // Adds the partition's address to the partition lookup table using its tag as the key
+                partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
+
+                // Inserts the unused space generated when a new page was created as an empty partition
+                allocatedPartitions.push_back(
+                        Partition{-1, requestedMemory - size, lastMemoryPartitionAddress->address});
+
+                // Stores the unused space generated when a new page was created
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+
+                // Increments the iterator to now point to the empty space partition
+                lastMemoryPartitionAddress.operator++();
+            }
+                // Creates a partition that is the page size
+            else {
+                // Increments how many pages had to be requested in total
+                result.n_pages_requested++;
+
+                // Creates a partition based on the specified tag and size
+                allocatedPartitions.push_back(Partition{tag, size, lastMemoryPartitionAddress->address});
+
+                // Updates the address to point to the newly created first partition
+                lastMemoryPartitionAddress = allocatedPartitions.begin();
+
+                // Adds the partition's address to the partition lookup table using its tag as the key
+                partitionLookupTable[tag].push_back(lastMemoryPartitionAddress);
+
+                // Inserts the unused space generated when a new page was created as an empty partition
+                allocatedPartitions.push_back(
+                        Partition{-1, pageSize - size, lastMemoryPartitionAddress->address});
+
+                // Stores the unused space generated when a new page was created
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+
+                // Increments the iterator to now point to the empty space partition
+                lastMemoryPartitionAddress.operator++();
+            }
+        }
+            // Code run if an existing partition already exists
+        else {
+
+        }
     }
 
+    // Function to deallocate memory
     void deallocate(int tag) {
         // Pseudocode for deallocation request:
         // - for every partition
@@ -36,18 +135,17 @@ struct Simulator {
         //         - merge any adjacent free partitions
     }
 
+    // Function to return the results back to the calling code based on the current memory partitioning
     MemSimResult getStats() {
-        // let's guess the result... :)
-        MemSimResult result;
-        result.max_free_partition_size = 123;
-        result.max_free_partition_address = 321;
-        result.n_pages_requested = 111;
+        result.max_free_partition_address = lastMemoryPartitionAddress->address;
+        result.max_free_partition_size = lastMemoryPartitionAddress->size;
         return result;
     }
 
+    // Function to check the consistency of the current memory partitioning
     void check_consistency() {
         // make sure the sum of all partition sizes in your linked list is
-        // the same as number of page requests * page_size
+        // the same as number of page requests * pageSize
 
         // make sure your addresses are correct
 
@@ -57,7 +155,7 @@ struct Simulator {
 
         // make sure that every free partition is in free blocks
 
-        // make sure that every partition in free_blocks is actually free
+        // make sure that every partition in unallocatedPartitions is actually free
 
         // make sure that none of the partition sizes or addresses are < 1
     }
