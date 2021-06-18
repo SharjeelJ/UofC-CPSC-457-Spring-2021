@@ -107,15 +107,52 @@ struct Simulator {
             // Stores the total size of the partition being added
             int64_t requestedMemory = requestedPages * pageSize;
 
-            // Increments how many pages had to be requested in total
-            result.n_pages_requested += requestedPages;
+            // Checks to see if the request can be fit into an existing partition
+            if ((*largestUnallocatedPartition)->size >= size) {
+                // Stores the existing largest unallocated partition's free space
+                int64_t existingUnallocatedSize = (*largestUnallocatedPartition)->size;
 
-            // Checks to see if more pages need to be requested or if the request can be fit into an existing partition
-            if (requestedPages == 0) {
+                // Sets the memory partition iterator to be the partition where insertion will take place
+                memoryPartitionIterator = *largestUnallocatedPartition;
 
+                // Decrements the iterator to now point to the previous partition (non empty)
+                memoryPartitionIterator.operator--();
+
+                // Removes the free space partition
+                unallocatedPartitions.erase(largestUnallocatedPartition);
+                allocatedPartitions.erase(*largestUnallocatedPartition);
+
+                // Creates a partition based on the specified tag and size at the previous empty partition address
+                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size,
+                                                                                    memoryPartitionIterator->address +
+                                                                                    memoryPartitionIterator->size});
+
+                // Updates the iterator to point to the newly created partition
+                memoryPartitionIterator.operator++();
+
+                // Adds the partition's address to the partition lookup table using its tag as the key
+                partitionLookupTable[tag].push_back(memoryPartitionIterator);
+
+                // Checks to see if an empty partition needs to be inserted
+                if (existingUnallocatedSize > size) {
+                    // Inserts the unused space as an empty partition right after the new partition
+                    allocatedPartitions.insert(next(memoryPartitionIterator),
+                                               Partition{-1, existingUnallocatedSize - size,
+                                                         memoryPartitionIterator->address +
+                                                         memoryPartitionIterator->size});
+
+                    // Stores the unused space
+                    unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+
+                    // Increments the iterator to now point to the empty space partition
+                    memoryPartitionIterator.operator++();
+                }
             }
                 // Code run if more pages needed to be requested (means that the partition we will insert is at the end)
             else {
+                // Increments how many pages had to be requested in total
+                result.n_pages_requested += requestedPages;
+
                 // Stores the existing largest unallocated partition's free space
                 int64_t existingUnallocatedSize = (*largestUnallocatedPartition)->size;
 
