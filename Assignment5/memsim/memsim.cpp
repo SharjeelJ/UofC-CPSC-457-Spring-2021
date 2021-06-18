@@ -114,7 +114,7 @@ struct Simulator {
                                            Partition{-1, existingMemory + requestedMemory - size,
                                                      memoryPartitionIterator->address + memoryPartitionIterator->size});
                 // Adds empty partition to the set
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), next(memoryPartitionIterator));
             }
         }
             // If there is an empty partition present at the end that can contribute to the new partition
@@ -221,19 +221,26 @@ struct Simulator {
         //         - mark the partition free
         //         - merge any adjacent free partitions
 
-//        for (PartitionAddress currentPartition : partitionLookupTable[tag]) {
-//            memoryPartitionIterator = currentPartition;
-//            allocatedPartitions.erase(currentPartition);
-//
-//            unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
-//        }
-//        partitionLookupTable.erase(tag);
+        // Checks to see if the tag has entries (otherwise skips the request)
+        if (partitionLookupTable[tag].size() > 0) {
+            // Loops through all partitions tied to the tag
+            for (auto currentPartition : partitionLookupTable[tag]) {
+                // Sets the pointer to be at current partition
+                memoryPartitionIterator = currentPartition;
+
+                // Changes the current partition to now be an empty one
+                currentPartition->tag = -1;
+
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), currentPartition);
+            }
+            partitionLookupTable.erase(tag);
+        }
     }
 
     // Function to return the results back to the calling code based on the current memory partitioning
     MemSimResult getStats() {
-        result.max_free_partition_address = memoryPartitionIterator->address;
-        result.max_free_partition_size = memoryPartitionIterator->size;
+        result.max_free_partition_address = (*unallocatedPartitions.begin())->address;
+        result.max_free_partition_size = (*unallocatedPartitions.begin())->size;
         return result;
     }
 
