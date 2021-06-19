@@ -7,17 +7,25 @@
 
 using namespace std;
 
-// Creates a struct that will store the tag, size and address of each partition
+// Struct that will store the tag, size and address of each partition
 struct Partition {
     int tag;
-    int64_t size, address;
+    int64_t size;
+    int64_t address;
 };
 
 // Creates an iterator for the doubly linked list consisting of Partition structs
 typedef list<Partition>::iterator PartitionAddress;
 
-// Custom comparator struct that will be used to sort free partitions
+// Custom comparator struct that will be used to sort unallocated partitions
 struct customComparator {
+    /**
+     * Function that acts as a comparator and compares two Partition's based on their size and falls back to their address in the case of a tie
+     * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
+     * @param c1 - Pointer to the first Partition
+     * @param c2 - Pointer to the second Partition
+     * @returns Boolean - True if (Partition 1 size > Partition 2 size) OR (Partition 1 address < Partition 2 address AND Partition 1 size == Partition 2 size)
+     */
     bool operator()(const PartitionAddress &c1, const PartitionAddress &c2) const {
         if (c1->size == c2->size)
             return c1->address < c2->address;
@@ -28,10 +36,10 @@ struct customComparator {
 
 // Struct that will simulate memory handling
 struct Simulator {
-    // Doubly linked list that will store all the memory partitions (by default has a single partition of size 0)
-    list<Partition> allocatedPartitions;
+    // Doubly linked list that will store all the memory partitions
+    list<Partition> allPartitions;
 
-    // Set containing all the memory partitions from the doubly linked list in sorted order based on the size/address
+    // Set containing all the unallocated memory partitions from the doubly linked list in sorted order based on the size/address (partition that has the smallest address is preferred in the case of a tie)
     set<PartitionAddress, customComparator> unallocatedPartitions;
 
     // Unordered map that will store all the partitions tied to a specific tag
@@ -40,320 +48,284 @@ struct Simulator {
     // Stores the page size value specified by the calling code (will determine partition sizes)
     int64_t pageSize = 0;
 
-    // Sets the partition iterator to be at the start of the partitions allocated list by default
-    PartitionAddress memoryPartitionIterator = allocatedPartitions.begin();
+    // Sets the partition iterator to be at the start of the partitions list by default
+    PartitionAddress partitionIterator = allPartitions.begin();
 
-    // Creates the result struct that will store the results if the calling code requests them and stores default values into its elements
+    // Creates the result struct that will store the results if the calling code requests them and stores default values into it
     MemSimResult result = {0, 0, 0};
 
-    // Constructor that will store the page file sized specified by the calling code
-    Simulator(int64_t page_size) {
+    // Constructor that will store the page size specified by the calling code
+    /**
+     * Constructor that sets the page size that will be used for all future partition allocation / deallocation actions
+     * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
+     * @param page_size - Page size to use for all future partition actions
+     */
+    explicit Simulator(int64_t page_size) {
         pageSize = page_size;
     }
 
-    // Function to allocate memory
+    /**
+     * Function that inserts the specified tag and size as a partition
+     * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
+     * @param tag - Integer tag of the requested partition to be created
+     * @param size - Integer size of the requested partition to be created
+     */
     void allocate(int tag, int size) {
-        // Pseudocode for allocation request:
-        // - search through the list of partitions from start to end, and
-        //   find the largest partition that fits requested size
-        //     - in case of ties, pick the first partition found
-        // - if no suitable partition found:
-        //     - get minimum number of pages from OS, but consider the
-        //       case when last partition is free
-        //     - add the new memory at the end of partition list
-        //     - the last partition will be the best partition
-        // - split the best partition in two if necessary
-        //     - mark the first partition occupied, and store the tag in it
-        //     - mark the second partition free
+        // Sets the partition iterator to the first partition
+        partitionIterator = allPartitions.begin();
 
-//        printf("Alloc: %ld\n", tag);
-
-        // Default
-        memoryPartitionIterator = allocatedPartitions.begin();
-
-        // If there is an empty partition present and that partition can fit requested partition
+        // Checks to see if there is an empty partition present and that partition can fit requested partition
         if (!unallocatedPartitions.empty() && (*unallocatedPartitions.begin())->size >= size) {
-//            printf("Hit 1\n");
-            // Defaults
-            int64_t requestedPages = 0;
-            int64_t requestedMemory = 0;
-            int64_t existingMemory = 0;
-            int64_t previousAddress = 0;
+            // Default values that will be used in the allocation
+            int64_t requestedPages;
+            int64_t requestedMemory;
+            int64_t existingMemory;
+            int64_t existingPartitionAddress;
 
-            // Stores the existing memory
+            // Stores the size of the partition that will be inserted into
             existingMemory = (*unallocatedPartitions.begin())->size;
 
-            // Store requested pages needed
+            // Stores the number of pages that need to be requested
             requestedPages = ceil(double(size - existingMemory) / pageSize);
 
+            // Changes the number of pages that need to be requested to 0 if it was a negative value (can occur when the existing partition's size is greater than the new partition will need)
             if (requestedPages < 0)
                 requestedPages = 0;
 
-            // Store requested memory needed
+            // Stores the total amount of memory that will be requested
             requestedMemory = requestedPages * pageSize;
 
-            // Increment result
+            // Increments the total number of pages that were allocated during this runtime
             result.n_pages_requested += requestedPages;
 
-            previousAddress = (*unallocatedPartitions.begin())->address;
+            // Stores the address value of the existing partition
+            existingPartitionAddress = (*unallocatedPartitions.begin())->address;
 
-            // Sets pointer to be before the empty partition
-            memoryPartitionIterator = prev(*unallocatedPartitions.begin());
+            // Sets the iterator to be before the unallocated partition (prevents issues due to the memory being modified while being pointed to by the iterator)
+            partitionIterator = prev(*unallocatedPartitions.begin());
 
-            // Remove the existing empty partition
-            allocatedPartitions.erase(*unallocatedPartitions.begin());
+            // Remove the existing unallocated partition
+            allPartitions.erase(*unallocatedPartitions.begin());
             unallocatedPartitions.erase(unallocatedPartitions.begin());
 
-            // Add requested partition
-            allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size, previousAddress});
+            // Adds the new requested partition
+            allPartitions.insert(next(partitionIterator), Partition{tag, size, existingPartitionAddress});
 
-            // Moves pointer to requested partition
-            memoryPartitionIterator++;
+            // Increments the iterator to now point to the newly created partition
+            partitionIterator++;
 
-            // Adds requested partition to the lookup table
-            partitionLookupTable[tag].push_back(memoryPartitionIterator);
+            // Adds the newly created partition to the partition lookup table based on its tag value being the key
+            partitionLookupTable[tag].push_back(partitionIterator);
 
-            // Add unused space partition (if any)
+            // Checks to see if an unallocated space partition needs to be created
             if (existingMemory + requestedMemory - size != 0) {
-                // Inserts empty partition
-                allocatedPartitions.insert(next(memoryPartitionIterator),
-                                           Partition{0, existingMemory + requestedMemory - size,
-                                                     memoryPartitionIterator->address + memoryPartitionIterator->size});
-                // Adds empty partition to the set
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), next(memoryPartitionIterator));
+                // Inserts an unallocated partition to the right of the newly generated partition
+                allPartitions.insert(next(partitionIterator), Partition{0, existingMemory + requestedMemory - size,
+                                                                        partitionIterator->address +
+                                                                        partitionIterator->size});
+
+                // Adds the newly created unallocated partition to the unallocated partitions set
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), next(partitionIterator));
             }
         }
-            // If there is an empty partition present at the end that can contribute to the new partition
-        else if (!unallocatedPartitions.empty() && prev(allocatedPartitions.end())->tag == 0) {
-//            printf("Hit 2\n");
-            // Defaults
-            int64_t requestedPages = 0;
-            int64_t requestedMemory = 0;
-            int64_t existingMemory = 0;
+            // Checks to see if there is an unallocated partition present at the end that can contribute to the requested partition
+        else if (!unallocatedPartitions.empty() && prev(allPartitions.end())->tag == 0) {
+            // Default values that will be used in the allocation
+            int64_t requestedPages;
+            int64_t requestedMemory;
+            int64_t existingMemory;
 
-            // Stores the existing memory
-            existingMemory = prev(allocatedPartitions.end())->size;
+            // Stores the size of the unallocated partition that will be consumed
+            existingMemory = prev(allPartitions.end())->size;
 
-            // Store requested pages needed
+            // Stores the number of pages that need to be requested
             requestedPages = ceil(double(size - existingMemory) / pageSize);
 
-            // Store requested memory needed
+            // Stores the total amount of memory that will be requested
             requestedMemory = requestedPages * pageSize;
 
-            // Increment result
+            // Increments the total number of pages that were allocated during this runtime
             result.n_pages_requested += requestedPages;
 
-            // Remove the end partition
-            unallocatedPartitions.erase(prev(allocatedPartitions.end()));
-            allocatedPartitions.pop_back();
+            // Remove the existing unallocated partition (end partition)
+            unallocatedPartitions.erase(prev(allPartitions.end()));
+            allPartitions.pop_back();
 
-            // Set pointer to end partition
-            memoryPartitionIterator = prev(allocatedPartitions.end());
+            // Sets the iterator to point to end partition
+            partitionIterator = prev(allPartitions.end());
 
-            // Add requested partition
-            if (allocatedPartitions.empty())
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size, 0});
+            // Adds the requested partition based on if it's the only partition in the list or there are pre-existing partitions as well
+            if (allPartitions.empty())
+                allPartitions.insert(next(partitionIterator), Partition{tag, size, 0});
             else
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size,
-                                                                                    memoryPartitionIterator->address +
-                                                                                    memoryPartitionIterator->size});
+                allPartitions.insert(next(partitionIterator),
+                                     Partition{tag, size, partitionIterator->address + partitionIterator->size});
 
-            // Moves pointer to requested partition
-            memoryPartitionIterator++;
+            // Increments the iterator to now point to the newly created partition
+            partitionIterator++;
 
-            // Adds requested partition to the lookup table
-            partitionLookupTable[tag].push_back(memoryPartitionIterator);
+            // Adds the newly created partition to the partition lookup table based on its tag value being the key
+            partitionLookupTable[tag].push_back(partitionIterator);
 
-            // Add unused space partition (if any)
+            // Checks to see if an unallocated space partition needs to be created
             if (existingMemory + requestedMemory - size != 0) {
-                // Inserts empty partition
-                allocatedPartitions.insert(next(memoryPartitionIterator),
-                                           Partition{0, existingMemory + requestedMemory - size,
-                                                     memoryPartitionIterator->address + memoryPartitionIterator->size});
-                // Adds empty partition to the set
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+                // Inserts an unallocated partition to the right of the newly generated partition (end)
+                allPartitions.insert(next(partitionIterator), Partition{0, existingMemory + requestedMemory - size,
+                                                                        partitionIterator->address +
+                                                                        partitionIterator->size});
+
+                // Adds the newly created unallocated partition to the unallocated partitions set
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allPartitions.end());
             }
         }
-            // If there are no empty partitions at all
+            // Run if there are no empty partitions at all that can be used
         else {
-//            printf("Hit 3\n");
-            // Defaults
-            int64_t requestedPages = 0;
-            int64_t requestedMemory = 0;
+            // Default values that will be used in the allocation
+            int64_t requestedPages;
+            int64_t requestedMemory;
 
-            // Store requested pages needed
+            // Stores the number of pages that need to be requested
             requestedPages = ceil(double(size) / pageSize);
 
-            // Store requested memory needed
+            // Stores the total amount of memory that will be requested
             requestedMemory = requestedPages * pageSize;
 
-            // Increment result
+            // Increments the total number of pages that were allocated during this runtime
             result.n_pages_requested += requestedPages;
 
-            // Set pointer to end partition
-            memoryPartitionIterator = prev(allocatedPartitions.end());
+            // Sets the iterator to point to end partition
+            partitionIterator = prev(allPartitions.end());
 
-            // Add requested partition
-            if (allocatedPartitions.empty())
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size, 0});
+            // Adds the requested partition based on if it's the only partition in the list or there are pre-existing partitions as well
+            if (allPartitions.empty())
+                allPartitions.insert(next(partitionIterator), Partition{tag, size, 0});
             else
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size,
-                                                                                    memoryPartitionIterator->address +
-                                                                                    memoryPartitionIterator->size});
+                allPartitions.insert(next(partitionIterator),
+                                     Partition{tag, size, partitionIterator->address + partitionIterator->size});
 
-            // Moves pointer to requested partition
-            memoryPartitionIterator++;
+            // Increments the iterator to now point to the newly created partition
+            partitionIterator++;
 
-            // Adds requested partition to the lookup table
-            partitionLookupTable[tag].push_back(memoryPartitionIterator);
+            // Adds the newly created partition to the partition lookup table based on its tag value being the key
+            partitionLookupTable[tag].push_back(partitionIterator);
 
-            // Add unused space partition (if any)
+            // Checks to see if an unallocated space partition needs to be created
             if (requestedMemory - size != 0) {
-                // Inserts empty partition
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{0, requestedMemory - size,
-                                                                                    memoryPartitionIterator->address +
-                                                                                    memoryPartitionIterator->size});
-                // Adds empty partition to the set
-                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
+                // Inserts an unallocated partition to the right of the newly generated partition (end)
+                allPartitions.insert(next(partitionIterator), Partition{0, requestedMemory - size,
+                                                                        partitionIterator->address +
+                                                                        partitionIterator->size});
+
+                // Adds the newly created unallocated partition to the unallocated partitions set
+                unallocatedPartitions.insert(unallocatedPartitions.begin(), --allPartitions.end());
             }
         }
     }
 
-    // Function to deallocate memory
+    /**
+     * Function that erases the specified tag's associated partition(s)
+     * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
+     * @param tag - Integer tag of partition(s) to be erased
+     */
     void deallocate(int tag) {
-        // Pseudocode for deallocation request:
-        // - for every partition
-        //     - if partition is occupied and has a matching tag:
-        //         - mark the partition free
-        //         - merge any adjacent free partitions
-
-//        printf("Dealloc: %ld\n", tag);
-
-        // Checks to see if the tag has entries (otherwise skips the request)
-        if (partitionLookupTable[tag].size() > 0) {
+        // Checks to see if the specified tag has any associated partitions (otherwise skips the request)
+        if (!partitionLookupTable[tag].empty()) {
             // Loops through all partitions tied to the tag
             for (auto currentPartition : partitionLookupTable[tag]) {
-
                 // Booleans to store if the front or end of the list was hit while finding adjacent empty partitions
                 bool frontHit = false;
                 bool endHit = false;
 
-                // Sets the pointer to be at current partition
-                memoryPartitionIterator = currentPartition;
-
-                // Changes the current partition to now be an empty one
+                // Changes the current partition to now be unallocated
                 currentPartition->tag = 0;
 
-                // Stores all empty partitions to the left of the current partition
-                PartitionAddress leftMostAdjacentUnallocatedPartition = currentPartition;
-                while (!frontHit && leftMostAdjacentUnallocatedPartition->tag == 0) {
-                    if (leftMostAdjacentUnallocatedPartition != allocatedPartitions.begin() &&
-                        prev(leftMostAdjacentUnallocatedPartition)->tag == 0)
-                        leftMostAdjacentUnallocatedPartition = prev(leftMostAdjacentUnallocatedPartition);
-                    else if (leftMostAdjacentUnallocatedPartition == allocatedPartitions.begin())
+                // Sets the iterator to point to the current partition
+                partitionIterator = currentPartition;
+
+                // Merges all unallocated partitions that are to the left of the current partition (up until a non empty partition is encountered or the edge of the partitions list)
+                while (!frontHit && currentPartition->tag == 0) {
+                    // Checks to see if the current partition being checked is not the edge of the partitions list and that the partition to its left is unallocated
+                    if (currentPartition != allPartitions.begin() && prev(currentPartition)->tag == 0) {
+                        currentPartition->address = prev(partitionIterator)->address;
+                        currentPartition->size += prev(partitionIterator)->size;
+                        unallocatedPartitions.erase(prev(partitionIterator));
+                        allPartitions.erase(prev(partitionIterator));
+                        partitionIterator--;
+                    }
+                        // Checks to see if the current partition is the edge of the list and stops further checks
+                    else if (currentPartition == allPartitions.begin())
                         frontHit = true;
+                        // Stops further checks
                     else
                         break;
                 }
 
-                // Stores all empty partitions to the right of the current partition
-                PartitionAddress rightMostAdjacentUnallocatedPartition = currentPartition;
-                while (!endHit && rightMostAdjacentUnallocatedPartition->tag == 0) {
-                    if (rightMostAdjacentUnallocatedPartition != prev(allocatedPartitions.end()) &&
-                        next(rightMostAdjacentUnallocatedPartition)->tag == 0)
-                        rightMostAdjacentUnallocatedPartition = next(rightMostAdjacentUnallocatedPartition);
-                    else if (rightMostAdjacentUnallocatedPartition == prev(allocatedPartitions.end()))
+                // Sets the iterator to point to the current partition
+                partitionIterator = currentPartition;
+
+                // Merges all unallocated partitions that are to the right of the current partition (up until a non empty partition is encountered or the edge of the partitions list)
+                while (!endHit && currentPartition->tag == 0) {
+                    // Checks to see if the current partition being checked is not the edge of the partitions list and that the partition to its right is unallocated
+                    if (currentPartition != prev(allPartitions.end()) && next(currentPartition)->tag == 0) {
+                        currentPartition->size += next(partitionIterator)->size;
+                        unallocatedPartitions.erase(next(partitionIterator));
+                        allPartitions.erase(next(partitionIterator));
+                        partitionIterator++;
+                    }
+                        // Checks to see if the current partition is the edge of the list and stops further checks
+                    else if (currentPartition == prev(allPartitions.end()))
                         endHit = true;
+                        // Stops further checks
                     else
                         break;
                 }
 
-                // Sets the pointer to be at current partition
-                memoryPartitionIterator = currentPartition;
-                bool keepGoing = true;
-
-//                while (memoryPartitionIterator != leftMostAdjacentUnallocatedPartition &&
-//                       allocatedPartitions.begin() != memoryPartitionIterator) {
-                while (memoryPartitionIterator != leftMostAdjacentUnallocatedPartition &&
-                       allocatedPartitions.begin() != memoryPartitionIterator && keepGoing) {
-                    if (prev(memoryPartitionIterator) == leftMostAdjacentUnallocatedPartition)
-                        keepGoing = false;
-//                    printf("Hello1\n");
-                    currentPartition->address = prev(memoryPartitionIterator)->address;
-                    currentPartition->size += prev(memoryPartitionIterator)->size;
-                    unallocatedPartitions.erase(prev(memoryPartitionIterator));
-                    allocatedPartitions.erase(prev(memoryPartitionIterator));
-                    memoryPartitionIterator--;
-                }
-
-                // Sets the pointer to be at current partition
-                memoryPartitionIterator = currentPartition;
-                keepGoing = true;
-
-//                while (memoryPartitionIterator != rightMostAdjacentUnallocatedPartition &&
-//                       allocatedPartitions.end() != memoryPartitionIterator) {
-                while (memoryPartitionIterator != rightMostAdjacentUnallocatedPartition &&
-                       allocatedPartitions.end() != memoryPartitionIterator && keepGoing) {
-                    if (next(memoryPartitionIterator) == rightMostAdjacentUnallocatedPartition)
-                        keepGoing = false;
-//                    printf("Hello2\n");
-                    currentPartition->size += next(memoryPartitionIterator)->size;
-                    unallocatedPartitions.erase(next(memoryPartitionIterator));
-                    allocatedPartitions.erase(next(memoryPartitionIterator));
-                    memoryPartitionIterator++;
-                }
-
+                // Inserts the new unallocated partition into the unallocated partitions set
                 unallocatedPartitions.insert(unallocatedPartitions.begin(), currentPartition);
             }
+
+            // Removes all lookup values tied to the current tag from the partition lookup table (as they are now unallocated partitions and might've been merged)
             partitionLookupTable.erase(tag);
         }
     }
 
-    // Function to return the results back to the calling code based on the current memory partitioning
+    /**
+     * Function that grabs all the relevant information generated overtime by using the simulator and returns to
+     * @note Implements code from deadlock-detect (https://gitlab.com/cpsc457/public/deadlock-detect)
+     * @return MemSimResult - Results
+     */
     MemSimResult getStats() {
+        // Checks to see if any partitions were created at all otherwise returns the default result values
         if (!unallocatedPartitions.empty()) {
             result.max_free_partition_address = (*unallocatedPartitions.begin())->address;
             result.max_free_partition_size = (*unallocatedPartitions.begin())->size;
         }
+
+        // Returns the result back to the calling code
         return result;
-    }
-
-    // Function to check the consistency of the current memory partitioning
-    void check_consistency() {
-        // make sure the sum of all partition sizes in your linked list is
-        // the same as number of page requests * pageSize
-
-        // make sure your addresses are correct
-
-        // make sure the number of all partitions in your tag data structure +
-        // number of partitions in your free blocks is the same as the size
-        // of the linked list
-
-        // make sure that every free partition is in free blocks
-
-        // make sure that every partition in unallocatedPartitions is actually free
-
-        // make sure that none of the partition sizes or addresses are < 1
     }
 };
 
-
-// re-implement the following function
-// ===================================
-// parameters:
-//    page_size: integer in range [1..1,000,000]
-//    requests: array of requests
-// return:
-//    some statistics at the end of simulation
+/**
+ * Function that uses the provided page size and requests to simulate a memory partitioner and returns the results
+ * @note Implements code from deadlock-detect (https://gitlab.com/cpsc457/public/deadlock-detect)
+ * @param page_size - Integer of the page size that will be used for all future partition allocation / deallocation actions
+ * @param requests - Pointer to a vector consisting of Request that will indicate when to allocate / deallocate partitions and what their tag and size should be
+ * @return MemSimResult - Results
+ */
 MemSimResult mem_sim(int64_t page_size, const std::vector<Request> &requests) {
-    Simulator sim(page_size);
-    for (const auto &req : requests) {
-        if (req.tag < 0) {
-            sim.deallocate(-req.tag);
-        } else {
-            sim.allocate(req.tag, req.size);
-        }
-        sim.check_consistency();
+    // Initializes the memory simulator using the specified page size
+    Simulator memorySimulator(page_size);
+
+    // Loops through all the requests and calls the appropriate functions for each request
+    for (const auto &currentRequest : requests) {
+        // Checks to see if the tag of the current request is negative (indicates a deallocation request) otherwise runs the allocation code
+        if (currentRequest.tag < 0)
+            memorySimulator.deallocate(-currentRequest.tag);
+        else
+            memorySimulator.allocate(currentRequest.tag, currentRequest.size);
     }
-    return sim.getStats();
+
+    // Returns teh results to the calling code
+    return memorySimulator.getStats();
 }
