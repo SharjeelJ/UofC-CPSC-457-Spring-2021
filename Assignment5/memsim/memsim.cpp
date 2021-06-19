@@ -120,7 +120,7 @@ struct Simulator {
             // Checks to see if an unallocated space partition needs to be created
             if (existingMemory + requestedMemory - size != 0) {
                 // Inserts an unallocated partition to the right of the newly generated partition
-                allPartitions.insert(next(partitionIterator), Partition{0, existingMemory + requestedMemory - size,
+                allPartitions.insert(next(partitionIterator), Partition{-1, existingMemory + requestedMemory - size,
                                                                         partitionIterator->address +
                                                                         partitionIterator->size});
 
@@ -129,7 +129,7 @@ struct Simulator {
             }
         }
             // Checks to see if there is an unallocated partition present at the end that can contribute to the requested partition
-        else if (!unallocatedPartitions.empty() && prev(allPartitions.end())->tag == 0) {
+        else if (!unallocatedPartitions.empty() && prev(allPartitions.end())->tag == -1) {
             // Default values that will be used in the allocation
             int64_t requestedPages;
             int64_t requestedMemory;
@@ -170,7 +170,7 @@ struct Simulator {
             // Checks to see if an unallocated space partition needs to be created
             if (existingMemory + requestedMemory - size != 0) {
                 // Inserts an unallocated partition to the right of the newly generated partition (end)
-                allPartitions.insert(next(partitionIterator), Partition{0, existingMemory + requestedMemory - size,
+                allPartitions.insert(next(partitionIterator), Partition{-1, existingMemory + requestedMemory - size,
                                                                         partitionIterator->address +
                                                                         partitionIterator->size});
 
@@ -212,7 +212,7 @@ struct Simulator {
             // Checks to see if an unallocated space partition needs to be created
             if (requestedMemory - size != 0) {
                 // Inserts an unallocated partition to the right of the newly generated partition (end)
-                allPartitions.insert(next(partitionIterator), Partition{0, requestedMemory - size,
+                allPartitions.insert(next(partitionIterator), Partition{-1, requestedMemory - size,
                                                                         partitionIterator->address +
                                                                         partitionIterator->size});
 
@@ -229,55 +229,25 @@ struct Simulator {
      */
     void deallocate(int tag) {
         // Checks to see if the specified tag has any associated partitions (otherwise skips the request)
-        if (!partitionLookupTable[tag].empty()) {
+        if (partitionLookupTable[tag].size() > 0) {
             // Loops through all partitions tied to the tag
             for (auto currentPartition : partitionLookupTable[tag]) {
-                // Booleans to store if the front or end of the list was hit while finding adjacent empty partitions
-                bool frontHit = false;
-                bool endHit = false;
-
                 // Changes the current partition to now be unallocated
-                currentPartition->tag = 0;
-
-                // Sets the iterator to point to the current partition
-                partitionIterator = currentPartition;
+                currentPartition->tag = -1;
 
                 // Merges all unallocated partitions that are to the left of the current partition (up until a non empty partition is encountered or the edge of the partitions list)
-                while (!frontHit && currentPartition->tag == 0) {
-                    // Checks to see if the current partition being checked is not the edge of the partitions list and that the partition to its left is unallocated
-                    if (currentPartition != allPartitions.begin() && prev(currentPartition)->tag == 0) {
-                        currentPartition->address = prev(partitionIterator)->address;
-                        currentPartition->size += prev(partitionIterator)->size;
-                        unallocatedPartitions.erase(prev(partitionIterator));
-                        allPartitions.erase(prev(partitionIterator));
-                        partitionIterator--;
-                    }
-                        // Checks to see if the current partition is the edge of the list and stops further checks
-                    else if (currentPartition == allPartitions.begin())
-                        frontHit = true;
-                        // Stops further checks
-                    else
-                        break;
+                while (allPartitions.begin() != currentPartition && prev(currentPartition)->tag == -1) {
+                    currentPartition->address = prev(currentPartition)->address;
+                    currentPartition->size += prev(currentPartition)->size;
+                    unallocatedPartitions.erase(prev(currentPartition));
+                    allPartitions.erase(prev(currentPartition));
                 }
 
-                // Sets the iterator to point to the current partition
-                partitionIterator = currentPartition;
-
                 // Merges all unallocated partitions that are to the right of the current partition (up until a non empty partition is encountered or the edge of the partitions list)
-                while (!endHit && currentPartition->tag == 0) {
-                    // Checks to see if the current partition being checked is not the edge of the partitions list and that the partition to its right is unallocated
-                    if (currentPartition != prev(allPartitions.end()) && next(currentPartition)->tag == 0) {
-                        currentPartition->size += next(partitionIterator)->size;
-                        unallocatedPartitions.erase(next(partitionIterator));
-                        allPartitions.erase(next(partitionIterator));
-                        partitionIterator++;
-                    }
-                        // Checks to see if the current partition is the edge of the list and stops further checks
-                    else if (currentPartition == prev(allPartitions.end()))
-                        endHit = true;
-                        // Stops further checks
-                    else
-                        break;
+                while (prev(allPartitions.end()) != currentPartition && next(currentPartition)->tag == -1) {
+                    currentPartition->size += next(currentPartition)->size;
+                    unallocatedPartitions.erase(next(currentPartition));
+                    allPartitions.erase(next(currentPartition));
                 }
 
                 // Inserts the new unallocated partition into the unallocated partitions set
