@@ -76,6 +76,7 @@ struct Simulator {
             int64_t requestedPages = 0;
             int64_t requestedMemory = 0;
             int64_t existingMemory = 0;
+            int64_t previousAddress = 0;
 
             // Stores the existing memory
             existingMemory = (*unallocatedPartitions.begin())->size;
@@ -89,6 +90,8 @@ struct Simulator {
             // Increment result
             result.n_pages_requested += requestedPages;
 
+            previousAddress = (*unallocatedPartitions.begin())->address;
+
             // Sets pointer to be before the empty partition
             memoryPartitionIterator = prev(*unallocatedPartitions.begin());
 
@@ -97,9 +100,7 @@ struct Simulator {
             unallocatedPartitions.erase(unallocatedPartitions.begin());
 
             // Add requested partition
-            allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size,
-                                                                                memoryPartitionIterator->address +
-                                                                                memoryPartitionIterator->size});
+            allocatedPartitions.insert(next(memoryPartitionIterator), Partition{tag, size, previousAddress});
 
             // Moves pointer to requested partition
             memoryPartitionIterator++;
@@ -111,14 +112,14 @@ struct Simulator {
             if (existingMemory + requestedMemory - size != 0) {
                 // Inserts empty partition
                 allocatedPartitions.insert(next(memoryPartitionIterator),
-                                           Partition{-1, existingMemory + requestedMemory - size,
+                                           Partition{0, existingMemory + requestedMemory - size,
                                                      memoryPartitionIterator->address + memoryPartitionIterator->size});
                 // Adds empty partition to the set
                 unallocatedPartitions.insert(unallocatedPartitions.begin(), next(memoryPartitionIterator));
             }
         }
             // If there is an empty partition present at the end that can contribute to the new partition
-        else if (!unallocatedPartitions.empty() && prev(allocatedPartitions.end())->tag == -1) {
+        else if (!unallocatedPartitions.empty() && prev(allocatedPartitions.end())->tag == 0) {
             printf("Hit 2\n");
             // Defaults
             int64_t requestedPages = 0;
@@ -162,7 +163,7 @@ struct Simulator {
             if (existingMemory + requestedMemory - size != 0) {
                 // Inserts empty partition
                 allocatedPartitions.insert(next(memoryPartitionIterator),
-                                           Partition{-1, existingMemory + requestedMemory - size,
+                                           Partition{0, existingMemory + requestedMemory - size,
                                                      memoryPartitionIterator->address + memoryPartitionIterator->size});
                 // Adds empty partition to the set
                 unallocatedPartitions.insert(unallocatedPartitions.begin(), --allocatedPartitions.end());
@@ -204,7 +205,7 @@ struct Simulator {
             // Add unused space partition (if any)
             if (requestedMemory - size != 0) {
                 // Inserts empty partition
-                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{-1, requestedMemory - size,
+                allocatedPartitions.insert(next(memoryPartitionIterator), Partition{0, requestedMemory - size,
                                                                                     memoryPartitionIterator->address +
                                                                                     memoryPartitionIterator->size});
                 // Adds empty partition to the set
@@ -225,12 +226,40 @@ struct Simulator {
         if (partitionLookupTable[tag].size() > 0) {
             // Loops through all partitions tied to the tag
             for (auto currentPartition : partitionLookupTable[tag]) {
+
+                // Booleans to store if the front or end of the list was hit while finding adjacent empty partitions
+                bool frontHit = false;
+                bool endHit = false;
+
                 // Sets the pointer to be at current partition
                 memoryPartitionIterator = currentPartition;
 
                 // Changes the current partition to now be an empty one
-                currentPartition->tag = -1;
+                currentPartition->tag = 0;
 
+                // Stores all empty partitions to the left of the current partition
+                PartitionAddress leftMostAdjacentUnallocatedPartition = currentPartition;
+                while (!frontHit && leftMostAdjacentUnallocatedPartition->tag == 0) {
+                    if (leftMostAdjacentUnallocatedPartition != allocatedPartitions.begin() &&
+                        prev(leftMostAdjacentUnallocatedPartition)->tag == 0)
+                        leftMostAdjacentUnallocatedPartition = prev(leftMostAdjacentUnallocatedPartition);
+                    else if (leftMostAdjacentUnallocatedPartition == allocatedPartitions.begin())
+                        frontHit = true;
+                    else
+                        break;
+                }
+
+                // Stores all empty partitions to the right of the current partition
+                PartitionAddress rightMostAdjacentUnallocatedPartition = currentPartition;
+                while (!endHit && rightMostAdjacentUnallocatedPartition->tag == 0) {
+                    if (rightMostAdjacentUnallocatedPartition != prev(allocatedPartitions.end()) &&
+                        next(rightMostAdjacentUnallocatedPartition)->tag == 0)
+                        rightMostAdjacentUnallocatedPartition = next(rightMostAdjacentUnallocatedPartition);
+                    else if (rightMostAdjacentUnallocatedPartition == prev(allocatedPartitions.end()))
+                        endHit = true;
+                    else
+                        break;
+                }
                 unallocatedPartitions.insert(unallocatedPartitions.begin(), currentPartition);
             }
             partitionLookupTable.erase(tag);
