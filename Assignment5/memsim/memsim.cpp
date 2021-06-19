@@ -66,12 +66,14 @@ struct Simulator {
         //     - mark the first partition occupied, and store the tag in it
         //     - mark the second partition free
 
+//        printf("Alloc: %ld\n", tag);
+
         // Default
         memoryPartitionIterator = allocatedPartitions.begin();
 
         // If there is an empty partition present and that partition can fit requested partition
         if (!unallocatedPartitions.empty() && (*unallocatedPartitions.begin())->size >= size) {
-            printf("Hit 1\n");
+//            printf("Hit 1\n");
             // Defaults
             int64_t requestedPages = 0;
             int64_t requestedMemory = 0;
@@ -83,6 +85,9 @@ struct Simulator {
 
             // Store requested pages needed
             requestedPages = ceil(double(size - existingMemory) / pageSize);
+
+            if (requestedPages < 0)
+                requestedPages = 0;
 
             // Store requested memory needed
             requestedMemory = requestedPages * pageSize;
@@ -120,7 +125,7 @@ struct Simulator {
         }
             // If there is an empty partition present at the end that can contribute to the new partition
         else if (!unallocatedPartitions.empty() && prev(allocatedPartitions.end())->tag == 0) {
-            printf("Hit 2\n");
+//            printf("Hit 2\n");
             // Defaults
             int64_t requestedPages = 0;
             int64_t requestedMemory = 0;
@@ -171,7 +176,7 @@ struct Simulator {
         }
             // If there are no empty partitions at all
         else {
-            printf("Hit 3\n");
+//            printf("Hit 3\n");
             // Defaults
             int64_t requestedPages = 0;
             int64_t requestedMemory = 0;
@@ -222,6 +227,8 @@ struct Simulator {
         //         - mark the partition free
         //         - merge any adjacent free partitions
 
+//        printf("Dealloc: %ld\n", tag);
+
         // Checks to see if the tag has entries (otherwise skips the request)
         if (partitionLookupTable[tag].size() > 0) {
             // Loops through all partitions tied to the tag
@@ -260,6 +267,42 @@ struct Simulator {
                     else
                         break;
                 }
+
+                // Sets the pointer to be at current partition
+                memoryPartitionIterator = currentPartition;
+                bool keepGoing = true;
+
+//                while (memoryPartitionIterator != leftMostAdjacentUnallocatedPartition &&
+//                       allocatedPartitions.begin() != memoryPartitionIterator) {
+                while (memoryPartitionIterator != leftMostAdjacentUnallocatedPartition &&
+                       allocatedPartitions.begin() != memoryPartitionIterator && keepGoing) {
+                    if (prev(memoryPartitionIterator) == leftMostAdjacentUnallocatedPartition)
+                        keepGoing = false;
+//                    printf("Hello1\n");
+                    currentPartition->address = prev(memoryPartitionIterator)->address;
+                    currentPartition->size += prev(memoryPartitionIterator)->size;
+                    unallocatedPartitions.erase(prev(memoryPartitionIterator));
+                    allocatedPartitions.erase(prev(memoryPartitionIterator));
+                    memoryPartitionIterator--;
+                }
+
+                // Sets the pointer to be at current partition
+                memoryPartitionIterator = currentPartition;
+                keepGoing = true;
+
+//                while (memoryPartitionIterator != rightMostAdjacentUnallocatedPartition &&
+//                       allocatedPartitions.end() != memoryPartitionIterator) {
+                while (memoryPartitionIterator != rightMostAdjacentUnallocatedPartition &&
+                       allocatedPartitions.end() != memoryPartitionIterator && keepGoing) {
+                    if (next(memoryPartitionIterator) == rightMostAdjacentUnallocatedPartition)
+                        keepGoing = false;
+//                    printf("Hello2\n");
+                    currentPartition->size += next(memoryPartitionIterator)->size;
+                    unallocatedPartitions.erase(next(memoryPartitionIterator));
+                    allocatedPartitions.erase(next(memoryPartitionIterator));
+                    memoryPartitionIterator++;
+                }
+
                 unallocatedPartitions.insert(unallocatedPartitions.begin(), currentPartition);
             }
             partitionLookupTable.erase(tag);
@@ -268,8 +311,10 @@ struct Simulator {
 
     // Function to return the results back to the calling code based on the current memory partitioning
     MemSimResult getStats() {
-        result.max_free_partition_address = (*unallocatedPartitions.begin())->address;
-        result.max_free_partition_size = (*unallocatedPartitions.begin())->size;
+        if (!unallocatedPartitions.empty()) {
+            result.max_free_partition_address = (*unallocatedPartitions.begin())->address;
+            result.max_free_partition_size = (*unallocatedPartitions.begin())->size;
+        }
         return result;
     }
 
