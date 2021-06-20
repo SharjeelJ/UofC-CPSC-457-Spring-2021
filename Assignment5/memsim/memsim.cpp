@@ -261,7 +261,7 @@ struct Simulator {
 
     /**
      * Function that grabs all the relevant information generated overtime by using the simulator and returns to
-     * @note Implements code from deadlock-detect (https://gitlab.com/cpsc457/public/deadlock-detect)
+     * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
      * @return MemSimResult - Results
      */
     MemSimResult getStats() {
@@ -278,7 +278,7 @@ struct Simulator {
 
 /**
  * Function that uses the provided page size and requests to simulate a memory partitioner and returns the results
- * @note Implements code from deadlock-detect (https://gitlab.com/cpsc457/public/deadlock-detect)
+ * @note Implements code from memsim-w21 (https://gitlab.com/cpsc457/public/memsim-w21)
  * @param page_size - Integer of the page size that will be used for all future partition allocation / deallocation actions
  * @param requests - Pointer to a vector consisting of Request that will indicate when to allocate / deallocate partitions and what their tag and size should be
  * @return MemSimResult - Results
