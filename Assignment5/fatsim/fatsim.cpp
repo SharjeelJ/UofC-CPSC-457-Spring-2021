@@ -21,7 +21,7 @@ std::vector<long> fat_check(const std::vector<long> &fat) {
     vector<long> terminatingNodes;
 
     // Populates the adjacency list as well as the vector containing which nodes lead to a terminating node
-    for (int currentNode = 0; currentNode < fat.size(); currentNode++)
+    for (long currentNode = 0; currentNode < long(fat.size()); currentNode++)
         // Checks to see if the current currentNode leads to a terminating currentNode and adds it to the appropriate vector/list
         if (fat[currentNode] == -1)
             terminatingNodes.push_back(currentNode);
