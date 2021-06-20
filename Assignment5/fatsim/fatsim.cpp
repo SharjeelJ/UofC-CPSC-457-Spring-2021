@@ -1,5 +1,4 @@
 #include "fatsim.h"
-#include <cstdio>
 #include <algorithm>
 #include <stack>
 
@@ -24,36 +23,43 @@ std::vector<long> fat_check(const std::vector<long> &fat) {
         else
             adjacencyList[fat[node]].push_back(node);
 
-    // Creates the vector that will store the length of all possible chains leading up to a terminating node
+    // Creates the vector that will store the length of all possible chains leading up to a terminating node (will be returned to the calling code once populated)
     vector<long> nodeChainsResult;
 
+    // Creates a stack to store the nodes that need to still be parsed
     stack<long> nodesToParseStack;
+
+    // Populates the stack with the known nodes that lead to terminating nodes
     for (long node : terminatingNodes)
         nodesToParseStack.push(node);
 
-
+    // Checks to see if there is at least 1 node that leads to a terminating node otherwise skips running DFS
     if (!terminatingNodes.empty()) {
+        // Stores the most recent node that leads to a terminating node encountered
         long currentTerminatingNode = terminatingNodes.size() - 1;
+
+        // Pushes a default value of the longest chain being 1 to the result vector for the current node
         nodeChainsResult.push_back(1);
+
+        // Performs DFS and populates the result vector
         while (!nodesToParseStack.empty()) {
+            // Stores the current node that will be parsed and removes it from the stack
             long currentNode = nodesToParseStack.top();
             nodesToParseStack.pop();
 
-            if (nodesChainLength[currentNode] == -1)
+            // Updates the current node's length (marks it as visited)
+            if (nodesChainLength[currentNode] == -1) {
                 nodesChainLength[currentNode] = 1;
 
-            if (adjacencyList[currentNode].size() > 0) {
-                for (long subNode : adjacencyList[currentNode]) {
-                    if (nodesChainLength[subNode] == -1)
-                        nodesToParseStack.push(subNode);
+                // Checks to see if there are any immediate sub-nodes of the current node
+                if (adjacencyList[currentNode].size() > 0) {
+                    // Populates the stack with all the immediate sub-nodes of the current node
+                    for (long subNode : adjacencyList[currentNode]) {
+                        // Only adds sub-nodes to the stack that have not previously been visited
+                        if (nodesChainLength[subNode] == -1)
+                            nodesToParseStack.push(subNode);
+                    }
                 }
-                nodeChainsResult.back()++;
-            }
-
-            if (currentNode == terminatingNodes[currentTerminatingNode] ||
-                currentNode == terminatingNodes[currentTerminatingNode - 1]) {
-                nodeChainsResult.push_back(1);
-                currentTerminatingNode--;
             }
         }
     }
